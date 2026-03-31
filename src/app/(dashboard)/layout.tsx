@@ -1,0 +1,25 @@
+import { Sidebar } from '@/components/layout/sidebar'
+import { Topbar } from '@/components/layout/topbar'
+import { AuthGuard } from '@/components/AuthGuard'
+import { Toaster } from '@/components/ui/sonner'
+
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <AuthGuard>
+      <div className="flex h-screen overflow-hidden bg-gray-50">
+        <Sidebar />
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <Topbar />
+          <main className="flex-1 overflow-y-auto p-8">
+            {children}
+          </main>
+        </div>
+      </div>
+      <Toaster />
+    </AuthGuard>
+  )
+}
