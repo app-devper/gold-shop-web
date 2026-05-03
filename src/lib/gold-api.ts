@@ -108,12 +108,13 @@ export const inventoryApi = {
 export const rewardApi = {
   list: () => goldApi.get<Reward[]>('/api/v1/rewards').then(r => r.data),
   create: (data: Partial<Reward>) => goldApi.post<Reward>('/api/v1/rewards', data).then(r => r.data),
-  redeem: (data: { customerId: string; rewardId: string }) => goldApi.post('/api/v1/rewards/redeem', data),
+  redeem: (data: { customer_id: string; reward_id: string; branch_id: string }) =>
+    goldApi.post('/api/v1/rewards/redeem', data),
 }
 
 // ── Expenses ──────────────────────────────────────────────────────────────────
 export const expenseApi = {
-  list: (params?: { limit?: number; offset?: number }) =>
+  list: (params?: { limit?: number; offset?: number; branch_id?: string }) =>
     goldApi.get<Expense[]>('/api/v1/expenses', { params }).then(r => r.data),
   create: (data: Partial<Expense>) => goldApi.post<Expense>('/api/v1/expenses', data).then(r => r.data),
   categories: () => goldApi.get<ExpenseCategory[]>('/api/v1/expenses/categories').then(r => r.data),

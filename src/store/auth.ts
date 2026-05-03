@@ -8,8 +8,9 @@ interface AuthState {
   clientId: string | null
   username: string | null
   branchName: string | null
+  branchId: string | null
   setAuth: (token: string, host: string, role: string, clientId: string) => void
-  setUserInfo: (username: string, branchName: string) => void
+  setUserInfo: (username: string, branchName: string, branchId: string) => void
   logout: () => void
 }
 
@@ -22,9 +23,10 @@ export const useAuthStore = create<AuthState>()(
       clientId: null,
       username: null,
       branchName: null,
+      branchId: null,
       setAuth: (accessToken, host, userRole, clientId) => set({ accessToken, host, userRole, clientId }),
-      setUserInfo: (username, branchName) => set({ username, branchName }),
-      logout: () => set({ accessToken: null, host: null, userRole: null, clientId: null, username: null, branchName: null }),
+      setUserInfo: (username, branchName, branchId) => set({ username, branchName, branchId }),
+      logout: () => set({ accessToken: null, host: null, userRole: null, clientId: null, username: null, branchName: null, branchId: null }),
     }),
     {
       name: 'auth-storage',

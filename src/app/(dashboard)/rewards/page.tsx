@@ -9,6 +9,7 @@ import { useForm } from 'react-hook-form'
 import * as z from 'zod'
 
 import { rewardApi, customerApi } from '@/lib/gold-api'
+import { useAuthStore } from '@/store/auth'
 import type { Reward, Customer } from '@/types/gold'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -33,6 +34,7 @@ type FormValues = { name: string; description: string; points_required: number; 
 const fmt = (n: number) => new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 }).format(n)
 
 export default function RewardsPage() {
+  const branchId = useAuthStore(s => s.branchId)
   const { data: rewards, isLoading, mutate } = useSWR<Reward[]>('rewards', rewardApi.list)
   const { data: customers } = useSWR<Customer[]>('customers', () => customerApi.list())
   const [open, setOpen] = useState(false)
@@ -58,9 +60,14 @@ export default function RewardsPage() {
 
   const handleRedeem = async () => {
     if (!redeemCustomerId || !redeemRewardId) return
+    if (!branchId) { toast.error('ไม่พบสาขาของผู้ใช้ — กรุณาเข้าสู่ระบบใหม่'); return }
     try {
       setSaving(true)
-      await rewardApi.redeem({ customerId: redeemCustomerId, rewardId: redeemRewardId })
+      await rewardApi.redeem({
+        customer_id: redeemCustomerId,
+        reward_id: redeemRewardId,
+        branch_id: branchId,
+      })
       toast.success('แลกรางวัลสำเร็จ')
       setRedeemOpen(false); setRedeemCustomerId(''); setRedeemRewardId('')
     } catch (e: any) { toast.error(e.response?.data?.message || 'เกิดข้อผิดพลาด') }
@@ -90,7 +97,9 @@ export default function RewardsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rewards?.map(r => (
+                  {!rewards?.length ? (
+                    <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">ยังไม่มีรางวัล</TableCell></TableRow>
+                  ) : rewards.map(r => (
                     <TableRow key={r.id}>
                       <TableCell>
                         <p className="font-medium">{r.name}</p>

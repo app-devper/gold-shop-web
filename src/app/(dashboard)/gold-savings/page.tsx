@@ -34,6 +34,7 @@ export default function GoldSavingsPage() {
   const [openAccountOpen, setOpenAccountOpen] = useState(false)
   const [amount, setAmount] = useState('')
   const [inputMode, setInputMode] = useState<'weight' | 'cash' | 'baht'>('weight')
+  const [withdrawAsCash, setWithdrawAsCash] = useState(false)
   const [saving, setSaving] = useState(false)
   const [newCustomerQ, setNewCustomerQ] = useState('')
   const [newCustomer, setNewCustomer] = useState<Customer | null>(null)
@@ -73,10 +74,18 @@ export default function GoldSavingsPage() {
     try {
       setSaving(true)
       const { type, account } = actionDialog
-      const sendAmount = goldGrams
-      if (type === 'deposit') { await goldSavingApi.deposit(account.id, { amount: sendAmount }); toast.success('ฝากทองสำเร็จ') }
-      else { await goldSavingApi.withdraw(account.id, { amount: sendAmount }); toast.success('ถอนทองสำเร็จ') }
-      mutate(); setActionDialog(null); setAmount('')
+      if (type === 'deposit') {
+        await goldSavingApi.deposit(account.id, { amount: goldGrams })
+        toast.success('ฝากทองสำเร็จ')
+      } else {
+        // as_cash=true → API expects amount in baht; as_cash=false → grams
+        const payload = withdrawAsCash
+          ? { amount: cashValue, as_cash: true }
+          : { amount: goldGrams, as_cash: false }
+        await goldSavingApi.withdraw(account.id, payload)
+        toast.success(withdrawAsCash ? 'ถอนเป็นเงินสดสำเร็จ' : 'ถอนทองสำเร็จ')
+      }
+      mutate(); setActionDialog(null); setAmount(''); setWithdrawAsCash(false)
     } catch (e: any) { toast.error(e.response?.data?.message || 'เกิดข้อผิดพลาด') }
     finally { setSaving(false) }
   }
@@ -174,8 +183,8 @@ export default function GoldSavingsPage() {
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => setDetail(a)}><Eye className="mr-2 h-4 w-4" />ดูรายการเคลื่อนไหว</DropdownMenuItem>
                             {a.status === 'active' && (<>
-                              <DropdownMenuItem onClick={() => { setActionDialog({ type: 'deposit', account: a }); setAmount(''); setInputMode('weight') }}>ฝากทอง</DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => { setActionDialog({ type: 'withdraw', account: a }); setAmount(''); setInputMode('weight') }}>ถอนทอง</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => { setActionDialog({ type: 'deposit', account: a }); setAmount(''); setInputMode('weight'); setWithdrawAsCash(false) }}>ฝากทอง</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => { setActionDialog({ type: 'withdraw', account: a }); setAmount(''); setInputMode('weight'); setWithdrawAsCash(false) }}>ถอนทอง</DropdownMenuItem>
                               <DropdownMenuItem className="text-red-600" onClick={() => handleClose(a.id)}>ปิดบัญชี</DropdownMenuItem>
                             </>)}
                           </DropdownMenuContent>
@@ -229,8 +238,8 @@ export default function GoldSavingsPage() {
               </div>
               {detail.status === 'active' && (
                 <div className="flex gap-2 pt-2 border-t">
-                  <Button size="sm" className="flex-1 bg-green-500 hover:bg-green-600 text-white" onClick={() => { setDetail(null); setActionDialog({ type: 'deposit', account: detail }); setAmount(''); setInputMode('weight') }}>ฝากทอง</Button>
-                  <Button size="sm" variant="outline" className="flex-1" onClick={() => { setDetail(null); setActionDialog({ type: 'withdraw', account: detail }); setAmount(''); setInputMode('weight') }}>ถอนทอง</Button>
+                  <Button size="sm" className="flex-1 bg-green-500 hover:bg-green-600 text-white" onClick={() => { setDetail(null); setActionDialog({ type: 'deposit', account: detail }); setAmount(''); setInputMode('weight'); setWithdrawAsCash(false) }}>ฝากทอง</Button>
+                  <Button size="sm" variant="outline" className="flex-1" onClick={() => { setDetail(null); setActionDialog({ type: 'withdraw', account: detail }); setAmount(''); setInputMode('weight'); setWithdrawAsCash(false) }}>ถอนทอง</Button>
                 </div>
               )}
             </div>
@@ -241,7 +250,7 @@ export default function GoldSavingsPage() {
       {/* Deposit/Withdraw Dialog */}
       <Dialog open={!!actionDialog} onOpenChange={() => setActionDialog(null)}>
         <DialogContent className="sm:max-w-sm">
-          <DialogHeader><DialogTitle>{actionDialog?.type === 'deposit' ? 'ฝากทอง' : 'ถอนทอง'}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{actionDialog?.type === 'deposit' ? 'ฝากทอง' : (withdrawAsCash ? 'ถอนเป็นเงินสด' : 'ถอนทอง')}</DialogTitle></DialogHeader>
           {actionDialog && (
             <div className="space-y-4">
               <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-3 text-sm">
@@ -266,6 +275,15 @@ export default function GoldSavingsPage() {
                   <button onClick={() => setInputMode('cash')} className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${inputMode === 'cash' ? 'bg-yellow-500 text-white border-yellow-500' : 'border-gray-200 hover:bg-gray-50'}`}>เงินบาท (฿)</button>
                 </div>
               </div>
+              {actionDialog.type === 'withdraw' && (
+                <div>
+                  <Label className="mb-2 block">รับเป็น</Label>
+                  <div className="flex gap-1">
+                    <button onClick={() => setWithdrawAsCash(false)} className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${!withdrawAsCash ? 'bg-yellow-500 text-white border-yellow-500' : 'border-gray-200 hover:bg-gray-50'}`}>ถอนเป็นทอง</button>
+                    <button onClick={() => setWithdrawAsCash(true)} className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${withdrawAsCash ? 'bg-green-600 text-white border-green-600' : 'border-gray-200 hover:bg-gray-50'}`}>ถอนเป็นเงินสด</button>
+                  </div>
+                </div>
+              )}
               <div>
                 <Label>
                   {inputMode === 'weight' ? 'น้ำหนักทอง (กรัม)' : inputMode === 'baht' ? 'จำนวนทอง (บาททอง = 15.244g)' : 'จำนวนเงิน (บาท ฿)'}

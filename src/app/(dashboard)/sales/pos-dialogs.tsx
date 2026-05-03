@@ -76,7 +76,7 @@ export function ItemDiscountDialog({ open, value, discountType, onValueChange, o
               </SelectContent>
             </Select>
           </div>
-          <div><Label>ส่วนลด</Label><Input type="number" value={value} onChange={e => onValueChange(e.target.value)} /></div>
+          <div><Label>ส่วนลด</Label><Input type="number" min="0" value={value} onChange={e => { const v = e.target.value; if (v && parseFloat(v) < 0) return; onValueChange(v) }} /></div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>ยกเลิก</Button>
@@ -107,7 +107,7 @@ export function GlobalDiscountDialog({ open, value, discountType, onValueChange,
               </SelectContent>
             </Select>
           </div>
-          <div><Label>ส่วนลด</Label><Input type="number" value={value} onChange={e => onValueChange(e.target.value)} /></div>
+          <div><Label>ส่วนลด</Label><Input type="number" min="0" value={value} onChange={e => { const v = e.target.value; if (v && parseFloat(v) < 0) return; onValueChange(v) }} /></div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>ยกเลิก</Button>

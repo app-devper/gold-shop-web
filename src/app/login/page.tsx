@@ -70,16 +70,19 @@ export default function LoginPage() {
       // 4. Save auth (sets token+host so goldApi interceptor works)
       setAuth(token, host, role, clientId)
 
-      // 5. Fetch employee /me to get branch name
+      // 5. Fetch employee /me to get branch name + id
       let branchName = ''
+      let branchId = ''
       try {
         const emp = await employeeApi.me()
         branchName = emp.branchName || ''
+        // API returns snake_case, type declares camelCase — read raw field directly.
+        branchId = (emp as unknown as { branch_id?: string }).branch_id || ''
       } catch {
-        // Not an employee (e.g. SUPER admin) — branch name stays empty
+        // Not an employee (e.g. SUPER admin) — branch fields stay empty
       }
 
-      setUserInfo(values.username, branchName)
+      setUserInfo(values.username, branchName, branchId)
 
       toast.success('Login successful')
       router.push('/dashboard')

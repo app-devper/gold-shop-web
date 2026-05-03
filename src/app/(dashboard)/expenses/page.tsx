@@ -10,6 +10,7 @@ import { useForm } from 'react-hook-form'
 import * as z from 'zod'
 
 import { expenseApi } from '@/lib/gold-api'
+import { useAuthStore } from '@/store/auth'
 import type { Expense, ExpenseCategory } from '@/types/gold'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -42,7 +43,11 @@ const statusColor: Record<string, string> = {
 const fmt = (n: number) => new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 }).format(n)
 
 export default function ExpensesPage() {
-  const { data: expenses, isLoading, mutate } = useSWR<Expense[]>('expenses', () => expenseApi.list())
+  const branchId = useAuthStore(s => s.branchId)
+  const { data: expenses, isLoading, mutate } = useSWR<Expense[]>(
+    branchId ? ['expenses', branchId] : null,
+    () => expenseApi.list({ branch_id: branchId! }),
+  )
   const { data: categories } = useSWR<ExpenseCategory[]>('expense-categories', expenseApi.categories)
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -90,7 +95,9 @@ export default function ExpensesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {expenses?.map(e => (
+                  {!expenses?.length ? (
+                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">ไม่มีรายการค่าใช้จ่าย</TableCell></TableRow>
+                  ) : expenses.map(e => (
                     <TableRow key={e.id}>
                       <TableCell className="font-mono text-sm">{e.expense_number}</TableCell>
                       <TableCell>{getCategoryName(e.category_id)}</TableCell>

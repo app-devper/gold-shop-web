@@ -73,7 +73,7 @@ export default function PawnsPage() {
         await pawnApi.redeem(pawn.id, { interest: parseFloat(amount), discount: parseFloat(discount) || 0 })
         toast.success('ไถ่ถอนสำเร็จ')
       } else if (type === 'extend') {
-        await pawnApi.extend(pawn.id, { additionalMonths: parseInt(months) })
+        await pawnApi.extend(pawn.id, { additional_months: parseInt(months) })
         toast.success('ต่อสัญญาสำเร็จ')
       }
       mutate(); setActionDialog(null); setAmount(''); setDiscount('0'); setMonths('1')
