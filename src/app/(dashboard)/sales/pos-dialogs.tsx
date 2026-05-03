@@ -26,7 +26,7 @@ export function CustomerSearchDialog({ open, onClose, customers, searchQ, setSea
         <div className="max-h-64 overflow-y-auto space-y-1 mt-2">
           {filtered.map(c => (
             <button key={c.id} onClick={() => onSelect(c)}
-              className="w-full text-left rounded-lg px-3 py-2 hover:bg-yellow-50 border transition-colors">
+              className="w-full text-left rounded-lg px-3 py-2 hover:bg-gold-50 border transition-colors">
               <p className="font-semibold text-sm">{c.full_name}</p>
               <p className="text-xs text-muted-foreground">{c.phone}{c.membership ? ` · ${c.membership.points} คะแนน` : ''}</p>
             </button>
@@ -166,7 +166,7 @@ export function OldGoldDialog({ open, desc, goldType, weight, price, defaultPric
               <Label>ราคารับซื้อ/กรัม (บาท)</Label>
               {defaultPricePerGram && defaultPricePerGram > 0 && (
                 <button type="button" onClick={() => onPriceChange(String(Math.round(defaultPricePerGram)))}
-                  className="text-xs text-yellow-600 hover:text-yellow-800 underline">
+                  className="text-xs text-gold-600 hover:text-gold-800 underline">
                   ใช้ราคาปัจจุบัน (฿{Math.round(defaultPricePerGram).toLocaleString('th-TH')})
                 </button>
               )}
@@ -174,7 +174,7 @@ export function OldGoldDialog({ open, desc, goldType, weight, price, defaultPric
             <Input type="number" value={price} onChange={e => onPriceChange(e.target.value)}
               placeholder={defaultPricePerGram ? String(Math.round(defaultPricePerGram)) : ''} />
           </div>
-          {weight && price && !isNaN(total) && <p className="text-sm font-semibold text-yellow-700">มูลค่ารวม: ฿{fmt(total)}</p>}
+          {weight && price && !isNaN(total) && <p className="text-sm font-semibold text-gold-700">มูลค่ารวม: ฿{fmt(total)}</p>}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>ยกเลิก</Button>
@@ -201,16 +201,16 @@ export function PaymentDialog({ open, netTotal, payMethod, payAmount, onMethodCh
       <DialogContent className="sm:max-w-sm">
         <DialogHeader><DialogTitle>ชำระเงิน</DialogTitle></DialogHeader>
         <div className="space-y-4">
-          <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-3 text-center">
+          <div className="rounded-lg bg-gold-50 border border-gold-200 p-3 text-center">
             <p className="text-sm text-muted-foreground">ยอดที่ต้องชำระ</p>
-            <p className="text-3xl font-bold text-yellow-700">฿{fmt(netTotal)}</p>
+            <p className="text-3xl font-bold text-gold-700">฿{fmt(netTotal)}</p>
           </div>
           <div>
             <Label className="mb-2 block">ช่องทางชำระเงิน</Label>
             <div className="grid grid-cols-3 gap-2">
               {methods.map(m => (
                 <button key={m.key} onClick={() => onMethodChange(m.key)}
-                  className={`py-2 text-xs font-medium rounded-lg border transition-colors ${payMethod === m.key ? 'bg-yellow-500 text-white border-yellow-500' : 'border-gray-200 hover:bg-gray-50'}`}>
+                  className={`py-2 text-xs font-medium rounded-lg border transition-colors ${payMethod === m.key ? 'bg-gold-500 text-white border-gold-500' : 'border-gray-200 hover:bg-gray-50'}`}>
                   {m.label}
                 </button>
               ))}
@@ -226,7 +226,7 @@ export function PaymentDialog({ open, netTotal, payMethod, payAmount, onMethodCh
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>ยกเลิก</Button>
-          <Button className="bg-yellow-500 hover:bg-yellow-600 text-white" onClick={onConfirm} disabled={saving}>
+          <Button className="bg-gold-500 hover:bg-gold-600 text-white" onClick={onConfirm} disabled={saving}>
             {saving ? 'กำลังบันทึก...' : 'ยืนยันการชำระเงิน'}
           </Button>
         </DialogFooter>
@@ -264,7 +264,7 @@ export function ReceiptDialog({ open, sale, onClose }: { open: boolean; sale: Sa
             {sale.discount > 0 && <div className="flex justify-between text-red-600"><span>ส่วนลด</span><span>-฿{fmt(sale.discount)}</span></div>}
             {sale.old_gold_value > 0 && <div className="flex justify-between text-orange-600"><span>ทองเก่า</span><span>-฿{fmt(sale.old_gold_value)}</span></div>}
             {sale.points_used > 0 && <div className="flex justify-between text-blue-600"><span>คะแนน</span><span>-฿{fmt(sale.points_used)}</span></div>}
-            <div className="flex justify-between font-bold text-base border-t pt-1"><span>ยอดสุทธิ</span><span className="text-yellow-700">฿{fmt(sale.net_total)}</span></div>
+            <div className="flex justify-between font-bold text-base border-t pt-1"><span>ยอดสุทธิ</span><span className="text-gold-700">฿{fmt(sale.net_total)}</span></div>
           </div>
           {sale.points_earned > 0 && <p className="text-center text-xs text-green-600">ได้รับคะแนน {sale.points_earned} คะแนน</p>}
         </div>

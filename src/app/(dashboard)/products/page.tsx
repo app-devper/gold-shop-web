@@ -2,17 +2,21 @@
 
 import { useState } from 'react'
 import useSWR from 'swr'
-import { Plus, Pencil, Trash2, MoreHorizontal } from 'lucide-react'
+import { Plus, Pencil, Trash2, MoreHorizontal, Package } from 'lucide-react'
 import { toast } from 'sonner'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import * as z from 'zod'
 
 import { productApi, categoryApi } from '@/lib/gold-api'
+import { apiToastError } from '@/lib/api-toast'
 import type { Product, ProductCategory } from '@/types/gold'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { EmptyState } from '@/components/empty-state'
+import { TableSkeleton } from '@/components/table-skeleton'
+import { Pagination } from '@/components/pagination'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -44,8 +48,14 @@ const statusColor: Record<string, string> = {
 
 const fmt = (n: number) => new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2 }).format(n)
 
+const PAGE_SIZE = 20
+
 export default function ProductsPage() {
-  const { data: products, isLoading, mutate } = useSWR<Product[]>('products', () => productApi.list())
+  const [page, setPage] = useState(0)
+  const { data: products, isLoading, mutate } = useSWR<Product[]>(
+    ['products', page],
+    () => productApi.list({ limit: PAGE_SIZE, offset: page * PAGE_SIZE }),
+  )
   const { data: categories } = useSWR<ProductCategory[]>('categories', categoryApi.list)
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Product | null>(null)
@@ -74,14 +84,14 @@ export default function ProductsPage() {
       else await productApi.create(values)
       toast.success(editing ? 'แก้ไขสินค้าสำเร็จ' : 'เพิ่มสินค้าสำเร็จ')
       mutate(); setOpen(false)
-    } catch (e: any) { toast.error(e.response?.data?.message || 'เกิดข้อผิดพลาด') }
+    } catch (e) { apiToastError(e) }
     finally { setSaving(false) }
   }
 
   const onDelete = async (id: string) => {
     if (!confirm('ยืนยันลบสินค้านี้?')) return
     try { await productApi.delete(id); toast.success('ลบสินค้าแล้ว'); mutate() }
-    catch (e: any) { toast.error(e.response?.data?.message || 'เกิดข้อผิดพลาด') }
+    catch (e) { apiToastError(e) }
   }
 
   const getCategoryName = (id: string) => categories?.find(c => c.id === id)?.name ?? '—'
@@ -93,20 +103,24 @@ export default function ProductsPage() {
         <Button onClick={openCreate} className="gap-2"><Plus className="h-4 w-4" />เพิ่มสินค้า</Button>
       </div>
       <Card>
-        <CardHeader><CardTitle>สินค้าทั้งหมด ({products?.length ?? 0})</CardTitle></CardHeader>
+        <CardHeader><CardTitle>สินค้าทั้งหมด</CardTitle></CardHeader>
         <CardContent>
-          {isLoading ? <div className="py-10 text-center text-muted-foreground">กำลังโหลด...</div> : (
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>รหัสสินค้า</TableHead><TableHead>ชื่อสินค้า</TableHead><TableHead>หมวดหมู่</TableHead>
-                    <TableHead>ประเภททอง</TableHead><TableHead>น้ำหนัก</TableHead><TableHead>ค่าแรง</TableHead>
-                    <TableHead>สถานะ</TableHead><TableHead className="w-12"></TableHead>
-                  </TableRow>
-                </TableHeader>
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>รหัสสินค้า</TableHead><TableHead>ชื่อสินค้า</TableHead><TableHead>หมวดหมู่</TableHead>
+                  <TableHead>ประเภททอง</TableHead><TableHead>น้ำหนัก</TableHead><TableHead>ค่าแรง</TableHead>
+                  <TableHead>สถานะ</TableHead><TableHead className="w-12"></TableHead>
+                </TableRow>
+              </TableHeader>
+              {isLoading ? <TableSkeleton rows={5} cols={8} /> : (
                 <TableBody>
-                  {products?.map(p => (
+                  {!products?.length ? (
+                    <TableRow><TableCell colSpan={8} className="p-0">
+                      <EmptyState icon={Package} title="ไม่พบสินค้า" description="กดปุ่มเพิ่มสินค้าเพื่อสร้างรายการแรก" />
+                    </TableCell></TableRow>
+                  ) : products.map(p => (
                     <TableRow key={p.id}>
                       <TableCell className="font-mono text-sm">{p.sku}</TableCell>
                       <TableCell className="font-medium">{p.name}</TableCell>
@@ -127,9 +141,15 @@ export default function ProductsPage() {
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
-            </div>
-          )}
+              )}
+            </Table>
+          </div>
+          <Pagination
+            page={page}
+            pageSize={PAGE_SIZE}
+            hasNext={(products?.length ?? 0) === PAGE_SIZE}
+            onPageChange={setPage}
+          />
         </CardContent>
       </Card>
 

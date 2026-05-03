@@ -2,17 +2,21 @@
 
 import { useState } from 'react'
 import useSWR from 'swr'
-import { Plus, Pencil, Trash2, MoreHorizontal, Star } from 'lucide-react'
+import { Plus, Pencil, Trash2, MoreHorizontal, Star, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import * as z from 'zod'
 
 import { customerApi } from '@/lib/gold-api'
+import { apiToastError } from '@/lib/api-toast'
 import type { Customer } from '@/types/gold'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { EmptyState } from '@/components/empty-state'
+import { TableSkeleton } from '@/components/table-skeleton'
+import { Pagination } from '@/components/pagination'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -30,14 +34,20 @@ const schema = z.object({
 const tierColor: Record<string, string> = {
   bronze: 'bg-orange-100 text-orange-700',
   silver: 'bg-gray-100 text-gray-700',
-  gold: 'bg-yellow-100 text-yellow-700',
+  gold: 'bg-gold-100 text-gold-700',
   platinum: 'bg-purple-100 text-purple-700',
 }
 
 const fmt = (n: number) => new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 }).format(n)
 
+const PAGE_SIZE = 20
+
 export default function CustomersPage() {
-  const { data: customers, isLoading, mutate } = useSWR<Customer[]>('customers', () => customerApi.list())
+  const [page, setPage] = useState(0)
+  const { data: customers, isLoading, mutate } = useSWR<Customer[]>(
+    ['customers', page],
+    () => customerApi.list({ limit: PAGE_SIZE, offset: page * PAGE_SIZE }),
+  )
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Customer | null>(null)
   const [saving, setSaving] = useState(false)
@@ -61,14 +71,14 @@ export default function CustomersPage() {
       else await customerApi.create(values)
       toast.success(editing ? 'แก้ไขลูกค้าสำเร็จ' : 'เพิ่มลูกค้าสำเร็จ')
       mutate(); setOpen(false)
-    } catch (e: any) { toast.error(e.response?.data?.message || 'เกิดข้อผิดพลาด') }
+    } catch (e) { apiToastError(e) }
     finally { setSaving(false) }
   }
 
   const onDelete = async (id: string) => {
     if (!confirm('ยืนยันลบลูกค้านี้?')) return
     try { await customerApi.delete(id); toast.success('ลบลูกค้าแล้ว'); mutate() }
-    catch (e: any) { toast.error(e.response?.data?.message || 'เกิดข้อผิดพลาด') }
+    catch (e) { apiToastError(e) }
   }
 
   return (
@@ -78,19 +88,23 @@ export default function CustomersPage() {
         <Button onClick={openCreate} className="gap-2"><Plus className="h-4 w-4" />เพิ่มลูกค้า</Button>
       </div>
       <Card>
-        <CardHeader><CardTitle>ลูกค้าทั้งหมด ({customers?.length ?? 0})</CardTitle></CardHeader>
+        <CardHeader><CardTitle>ลูกค้าทั้งหมด</CardTitle></CardHeader>
         <CardContent>
-          {isLoading ? <div className="py-10 text-center text-muted-foreground">กำลังโหลด...</div> : (
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ชื่อ</TableHead><TableHead>เบอร์โทร</TableHead><TableHead>สมาชิก</TableHead>
-                    <TableHead>คะแนน</TableHead><TableHead>ยอดซื้อรวม</TableHead><TableHead className="w-12"></TableHead>
-                  </TableRow>
-                </TableHeader>
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>ชื่อ</TableHead><TableHead>เบอร์โทร</TableHead><TableHead>สมาชิก</TableHead>
+                  <TableHead>คะแนน</TableHead><TableHead>ยอดซื้อรวม</TableHead><TableHead className="w-12"></TableHead>
+                </TableRow>
+              </TableHeader>
+              {isLoading ? <TableSkeleton rows={5} cols={6} /> : (
                 <TableBody>
-                  {customers?.map(c => (
+                  {!customers?.length ? (
+                    <TableRow><TableCell colSpan={6} className="p-0">
+                      <EmptyState icon={Users} title="ยังไม่มีลูกค้า" description="กดปุ่มเพิ่มลูกค้าเพื่อเริ่มต้น" />
+                    </TableCell></TableRow>
+                  ) : customers.map(c => (
                     <TableRow key={c.id}>
                       <TableCell>
                         <div className="font-medium">{c.full_name}</div>
@@ -118,9 +132,15 @@ export default function CustomersPage() {
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
-            </div>
-          )}
+              )}
+            </Table>
+          </div>
+          <Pagination
+            page={page}
+            pageSize={PAGE_SIZE}
+            hasNext={(customers?.length ?? 0) === PAGE_SIZE}
+            onPageChange={setPage}
+          />
         </CardContent>
       </Card>
 

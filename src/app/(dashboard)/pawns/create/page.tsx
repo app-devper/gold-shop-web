@@ -7,6 +7,7 @@ import { Plus, X, ArrowLeft } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { pawnApi, customerApi } from '@/lib/gold-api'
+import { apiToastError } from '@/lib/api-toast'
 import type { Customer } from '@/types/gold'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -88,7 +89,7 @@ export default function PawnCreatePage() {
         <CardHeader><CardTitle className="text-base">ข้อมูลลูกค้า</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           {selectedCustomer ? (
-            <div className="flex items-center gap-3 rounded-lg bg-yellow-50 border border-yellow-200 px-4 py-3">
+            <div className="flex items-center gap-3 rounded-lg bg-gold-50 border border-gold-200 px-4 py-3">
               <div className="flex-1">
                 <p className="font-semibold">{selectedCustomer.full_name}</p>
                 <p className="text-sm text-muted-foreground">{selectedCustomer.phone} · {selectedCustomer.id_card ?? 'ไม่มีบัตรประชาชน'}</p>
@@ -104,7 +105,7 @@ export default function PawnCreatePage() {
                     <p className="text-center text-sm text-muted-foreground py-4">ไม่พบลูกค้า</p>
                   ) : filteredCustomers.map(c => (
                     <button key={c.id} onClick={() => { setSelectedCustomer(c); setCustomerSearchQ('') }}
-                      className="w-full text-left px-4 py-2.5 hover:bg-yellow-50 transition-colors">
+                      className="w-full text-left px-4 py-2.5 hover:bg-gold-50 transition-colors">
                       <p className="font-medium text-sm">{c.full_name}</p>
                       <p className="text-xs text-muted-foreground">{c.phone}</p>
                     </button>
@@ -157,7 +158,7 @@ export default function PawnCreatePage() {
             </div>
           ))}
           {totalAppraisedValue > 0 && (
-            <p className="text-sm font-semibold text-yellow-700 text-right">ราคาประเมินรวม: ฿{fmt(totalAppraisedValue)}</p>
+            <p className="text-sm font-semibold text-gold-700 text-right">ราคาประเมินรวม: ฿{fmt(totalAppraisedValue)}</p>
           )}
         </CardContent>
       </Card>
@@ -179,7 +180,7 @@ export default function PawnCreatePage() {
             <Input type="number" min="1" value={termMonths} onChange={e => setTermMonths(e.target.value)} />
           </div>
           {principal && interestRate && termMonths && (
-            <div className="col-span-2 rounded-lg bg-yellow-50 border border-yellow-200 p-3 text-sm space-y-1">
+            <div className="col-span-2 rounded-lg bg-gold-50 border border-gold-200 p-3 text-sm space-y-1">
               <div className="flex justify-between"><span className="text-muted-foreground">เงินต้น</span><span className="font-semibold">฿{fmt(parseFloat(principal) || 0)}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">ดอกเบี้ย/เดือน</span><span className="font-semibold">฿{fmt((parseFloat(principal) || 0) * (parseFloat(interestRate) || 0) / 100)}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">ดอกเบี้ยรวม ({termMonths} เดือน)</span><span className="font-semibold">฿{fmt((parseFloat(principal) || 0) * (parseFloat(interestRate) || 0) / 100 * parseInt(termMonths))}</span></div>
@@ -194,7 +195,7 @@ export default function PawnCreatePage() {
 
       <div className="flex gap-3 justify-end">
         <Button variant="outline" onClick={() => router.back()}>ยกเลิก</Button>
-        <Button onClick={handleSubmit} disabled={saving} className="bg-yellow-500 hover:bg-yellow-600 text-white px-8">
+        <Button onClick={handleSubmit} disabled={saving} className="bg-gold-500 hover:bg-gold-600 text-white px-8">
           {saving ? 'กำลังบันทึก...' : 'บันทึกการรับจำนำ'}
         </Button>
       </div>

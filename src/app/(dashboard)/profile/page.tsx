@@ -78,7 +78,7 @@ export default function ProfilePage() {
   if (loading) {
     return (
       <div className="flex justify-center py-24">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-500" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gold-500" />
       </div>
     )
   }
@@ -99,8 +99,8 @@ export default function ProfilePage() {
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center gap-4">
-            <div className="h-16 w-16 rounded-full bg-yellow-100 flex items-center justify-center">
-              <UserCircle className="h-10 w-10 text-yellow-600" />
+            <div className="h-16 w-16 rounded-full bg-gold-100 flex items-center justify-center">
+              <UserCircle className="h-10 w-10 text-gold-600" />
             </div>
             <div>
               <p className="text-lg font-semibold">
@@ -147,7 +147,7 @@ export default function ProfilePage() {
           </div>
           <Separator />
           <div className="flex justify-end">
-            <Button onClick={handleSaveInfo} disabled={savingInfo} className="bg-yellow-500 hover:bg-yellow-600 text-white">
+            <Button onClick={handleSaveInfo} disabled={savingInfo} className="bg-gold-500 hover:bg-gold-600 text-white">
               <Save className="h-4 w-4 mr-2" />
               {savingInfo ? 'กำลังบันทึก…' : 'บันทึก'}
             </Button>

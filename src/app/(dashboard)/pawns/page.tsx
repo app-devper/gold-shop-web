@@ -8,6 +8,8 @@ import { toast } from 'sonner'
 import Link from 'next/link'
 
 import { pawnApi, customerApi } from '@/lib/gold-api'
+import { apiToastError } from '@/lib/api-toast'
+import { Pagination } from '@/components/pagination'
 import type { Pawn, Customer } from '@/types/gold'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -22,7 +24,7 @@ const statusColor: Record<string, string> = {
   active: 'bg-green-100 text-green-700',
   redeemed: 'bg-blue-100 text-blue-700',
   forfeited: 'bg-red-100 text-red-700',
-  extended: 'bg-yellow-100 text-yellow-700',
+  extended: 'bg-gold-100 text-gold-700',
 }
 const statusLabel: Record<string, string> = {
   active: 'กำลังจำนำ', redeemed: 'ไถ่ถอนแล้ว', forfeited: 'หลุดจำนำ', extended: 'ต่อสัญญา',
@@ -41,8 +43,14 @@ function StatCard({ title, value, icon: Icon, color }: { title: string; value: s
   )
 }
 
+const PAGE_SIZE = 20
+
 export default function PawnsPage() {
-  const { data: pawns, isLoading, mutate } = useSWR<Pawn[]>('pawns', () => pawnApi.list())
+  const [page, setPage] = useState(0)
+  const { data: pawns, isLoading, mutate } = useSWR<Pawn[]>(
+    ['pawns', page],
+    () => pawnApi.list({ limit: PAGE_SIZE, offset: page * PAGE_SIZE }),
+  )
   const { data: customers } = useSWR<Customer[]>('customers', () => customerApi.list())
   const [detail, setDetail] = useState<Pawn | null>(null)
   const [actionDialog, setActionDialog] = useState<{ type: 'interest' | 'redeem' | 'extend'; pawn: Pawn } | null>(null)
@@ -77,14 +85,14 @@ export default function PawnsPage() {
         toast.success('ต่อสัญญาสำเร็จ')
       }
       mutate(); setActionDialog(null); setAmount(''); setDiscount('0'); setMonths('1')
-    } catch (e: any) { toast.error(e.response?.data?.message || 'เกิดข้อผิดพลาด') }
+    } catch (e) { apiToastError(e) }
     finally { setSaving(false) }
   }
 
   const handleForfeit = async (id: string) => {
     if (!confirm('ยืนยันหลุดจำนำ?')) return
     try { await pawnApi.forfeit(id); toast.success('บันทึกหลุดจำนำแล้ว'); mutate() }
-    catch (e: any) { toast.error(e.response?.data?.message || 'เกิดข้อผิดพลาด') }
+    catch (e) { apiToastError(e) }
   }
 
   const PawnTable = ({ items }: { items: Pawn[] }) => (
@@ -145,14 +153,14 @@ export default function PawnsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">จำนำทอง</h1>
-        <Button asChild className="bg-yellow-500 hover:bg-yellow-600 text-white">
+        <Button asChild className="bg-gold-500 hover:bg-gold-600 text-white">
           <Link href="/pawns/create"><Plus className="h-4 w-4 mr-2" />รับจำนำใหม่</Link>
         </Button>
       </div>
 
       {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard title="จำนำทั้งหมด" value={String(active.length)} icon={Landmark} color="bg-yellow-500" />
+        <StatCard title="จำนำทั้งหมด" value={String(active.length)} icon={Landmark} color="bg-gold-500" />
         <StatCard title="ใกล้ครบกำหนด (7 วัน)" value={String(dueSoon.length)} icon={AlertTriangle} color="bg-orange-500" />
         <StatCard title="ยอดเงินต้นคงค้าง" value={`฿${fmt(totalPrincipal)}`} icon={Banknote} color="bg-blue-500" />
       </div>
@@ -161,18 +169,26 @@ export default function PawnsPage() {
       {isLoading ? (
         <div className="py-10 text-center text-muted-foreground">กำลังโหลด...</div>
       ) : (
-        <Tabs defaultValue="all">
-          <TabsList>
-            <TabsTrigger value="all">ทั้งหมด ({pawns?.length ?? 0})</TabsTrigger>
-            <TabsTrigger value="active">กำลังจำนำ ({active.length})</TabsTrigger>
-            <TabsTrigger value="redeemed">ไถ่ถอนแล้ว ({pawns?.filter(p => p.status === 'redeemed').length ?? 0})</TabsTrigger>
-            <TabsTrigger value="forfeited">หลุดจำนำ ({pawns?.filter(p => p.status === 'forfeited').length ?? 0})</TabsTrigger>
-          </TabsList>
-          <TabsContent value="all" className="mt-4"><PawnTable items={pawns ?? []} /></TabsContent>
-          <TabsContent value="active" className="mt-4"><PawnTable items={active} /></TabsContent>
-          <TabsContent value="redeemed" className="mt-4"><PawnTable items={pawns?.filter(p => p.status === 'redeemed') ?? []} /></TabsContent>
-          <TabsContent value="forfeited" className="mt-4"><PawnTable items={pawns?.filter(p => p.status === 'forfeited') ?? []} /></TabsContent>
-        </Tabs>
+        <>
+          <Tabs defaultValue="all">
+            <TabsList>
+              <TabsTrigger value="all">ทั้งหมด ({pawns?.length ?? 0})</TabsTrigger>
+              <TabsTrigger value="active">กำลังจำนำ ({active.length})</TabsTrigger>
+              <TabsTrigger value="redeemed">ไถ่ถอนแล้ว ({pawns?.filter(p => p.status === 'redeemed').length ?? 0})</TabsTrigger>
+              <TabsTrigger value="forfeited">หลุดจำนำ ({pawns?.filter(p => p.status === 'forfeited').length ?? 0})</TabsTrigger>
+            </TabsList>
+            <TabsContent value="all" className="mt-4"><PawnTable items={pawns ?? []} /></TabsContent>
+            <TabsContent value="active" className="mt-4"><PawnTable items={active} /></TabsContent>
+            <TabsContent value="redeemed" className="mt-4"><PawnTable items={pawns?.filter(p => p.status === 'redeemed') ?? []} /></TabsContent>
+            <TabsContent value="forfeited" className="mt-4"><PawnTable items={pawns?.filter(p => p.status === 'forfeited') ?? []} /></TabsContent>
+          </Tabs>
+          <Pagination
+            page={page}
+            pageSize={PAGE_SIZE}
+            hasNext={(pawns?.length ?? 0) === PAGE_SIZE}
+            onPageChange={setPage}
+          />
+        </>
       )}
 
       {/* Detail Dialog */}
@@ -236,7 +252,7 @@ export default function PawnsPage() {
           </DialogHeader>
           {actionDialog && (
             <div className="space-y-3 text-sm">
-              <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-3">
+              <div className="rounded-lg bg-gold-50 border border-gold-200 p-3">
                 <p className="font-semibold">{actionDialog.pawn.pawn_number}</p>
                 <p className="text-muted-foreground">เงินต้น: ฿{fmt(actionDialog.pawn.principal)} · {actionDialog.pawn.interest_rate}%/เดือน</p>
               </div>
@@ -254,7 +270,7 @@ export default function PawnsPage() {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setActionDialog(null)}>ยกเลิก</Button>
-            <Button onClick={handleAction} disabled={saving} className="bg-yellow-500 hover:bg-yellow-600 text-white">
+            <Button onClick={handleAction} disabled={saving} className="bg-gold-500 hover:bg-gold-600 text-white">
               {saving ? 'กำลังบันทึก...' : 'ยืนยัน'}
             </Button>
           </DialogFooter>

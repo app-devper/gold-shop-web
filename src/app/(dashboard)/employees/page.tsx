@@ -9,6 +9,7 @@ import { useForm } from 'react-hook-form'
 import * as z from 'zod'
 
 import { employeeApi, branchApi } from '@/lib/gold-api'
+import { apiToastError } from '@/lib/api-toast'
 import { umApi } from '@/lib/api'
 import type { Employee, Branch } from '@/types/gold'
 import { Button } from '@/components/ui/button'
@@ -69,14 +70,14 @@ export default function EmployeesPage() {
       else await employeeApi.create(values)
       toast.success(editing ? 'แก้ไขพนักงานสำเร็จ' : 'เพิ่มพนักงานสำเร็จ')
       mutate(); setOpen(false)
-    } catch (e: any) { toast.error(e.response?.data?.message || 'เกิดข้อผิดพลาด') }
+    } catch (e) { apiToastError(e) }
     finally { setSaving(false) }
   }
 
   const onDelete = async (id: string) => {
     if (!confirm('ยืนยันลบพนักงานนี้?')) return
     try { await employeeApi.delete(id); toast.success('ลบพนักงานแล้ว'); mutate() }
-    catch (e: any) { toast.error(e.response?.data?.message || 'เกิดข้อผิดพลาด') }
+    catch (e) { apiToastError(e) }
   }
 
   const getBranchName = (id: string) => branches?.find(b => b.id === id)?.name ?? id
@@ -172,7 +173,7 @@ export default function EmployeesPage() {
                         />
                       </div>
                       {field.value && (
-                        <div className="rounded-lg bg-yellow-50 border border-yellow-200 px-3 py-2 text-sm font-medium">
+                        <div className="rounded-lg bg-gold-50 border border-gold-200 px-3 py-2 text-sm font-medium">
                           ✓ {getUserName(field.value)}
                         </div>
                       )}
@@ -183,7 +184,7 @@ export default function EmployeesPage() {
                             : filteredUsers.map(u => (
                               <button key={u.id} type="button"
                                 onClick={() => { field.onChange(u.id); setUserSearch('') }}
-                                className="w-full text-left px-3 py-2 hover:bg-yellow-50 transition-colors">
+                                className="w-full text-left px-3 py-2 hover:bg-gold-50 transition-colors">
                                 <p className="font-medium text-sm">{u.firstName} {u.lastName}</p>
                                 <p className="text-xs text-muted-foreground">{u.username} · {u.role}</p>
                               </button>

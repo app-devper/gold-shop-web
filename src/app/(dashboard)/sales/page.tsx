@@ -1,12 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import useSWR from 'swr'
 import { format } from 'date-fns'
-import { Search, QrCode, ShoppingCart, Trash2, Edit2, Tag, UserPlus, X, Receipt, XCircle, RefreshCw } from 'lucide-react'
+import { Search, ShoppingCart, Trash2, Edit2, Tag, UserPlus, X, Receipt, XCircle, RefreshCw, Gem, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { saleApi, customerApi, productApi, goldPriceApi } from '@/lib/gold-api'
+import { useDebounced } from '@/lib/use-debounced'
+import { apiToastError } from '@/lib/api-toast'
 import type { Sale, Customer, Product, OldGoldItem, Payment, GoldPrice } from '@/types/gold'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -57,11 +59,13 @@ export default function SalesPage() {
   const [detailSale, setDetailSale] = useState<Sale | null>(null)
 
   // ── Data ──
+  const debouncedSearchQ = useDebounced(searchQ, 250)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const { data: currentGoldPrice } = useSWR<GoldPrice>('gold-price-current', () => goldPriceApi.current())
   const { data: allProducts } = useSWR<Product[]>('products-all', () => productApi.list({}))
   const { data: searchProducts } = useSWR<Product[]>(
-    searchQ ? ['products-search', searchQ] : null,
-    () => productApi.list({ search: searchQ })
+    debouncedSearchQ ? ['products-search', debouncedSearchQ] : null,
+    () => productApi.list({ search: debouncedSearchQ })
   )
   const { data: customers } = useSWR<Customer[]>('customers', () => customerApi.list())
   const { data: salesHistory, isLoading: histLoading, mutate: mutateSales } = useSWR<Sale[]>('sales', () => saleApi.list())
@@ -105,16 +109,82 @@ export default function SalesPage() {
       const sale = await saleApi.create(payload)
       setLastSale(sale); setReceiptOpen(true); clearCart(); mutateSales()
       toast.success('บันทึกการขายสำเร็จ')
-    } catch (e: any) {
-      toast.error(e.response?.data?.message || 'เกิดข้อผิดพลาด')
+    } catch (e) {
+      apiToastError(e)
     } finally { setSaving(false); setPaymentOpen(false) }
   }
 
   const handleCancelSale = async (id: string) => {
     if (!confirm('ยืนยันยกเลิกรายการนี้?')) return
     try { await saleApi.cancel(id); toast.success('ยกเลิกรายการแล้ว'); mutateSales() }
-    catch (e: any) { toast.error(e.response?.data?.message || 'เกิดข้อผิดพลาด') }
+    catch (e) { apiToastError(e) }
   }
+
+  // ── Keyboard shortcuts + barcode scanner ──
+  // Pure-digit input ≥6 chars typed within ~50ms-per-key = barcode → exact match auto-add.
+  const lastKeyTime = useRef(0)
+  const barcodeBuf = useRef('')
+  useEffect(() => {
+    const isTyping = (el: EventTarget | null) =>
+      el instanceof HTMLElement && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)
+
+    const handler = (e: KeyboardEvent) => {
+      // Cmd/Ctrl+F → focus search
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault()
+        searchInputRef.current?.focus()
+        searchInputRef.current?.select()
+        return
+      }
+      // F4 → open payment if cart not empty
+      if (e.key === 'F4') {
+        e.preventDefault()
+        if (!saving && (cart.length > 0 || saleType === 'buy_old')) {
+          setPayAmount(String(netTotal))
+          setPaymentOpen(true)
+        }
+        return
+      }
+
+      // Barcode: capture digit bursts globally (only when not in another input)
+      const now = Date.now()
+      const fast = now - lastKeyTime.current < 50
+      if (!isTyping(e.target) && /^[0-9]$/.test(e.key)) {
+        if (!fast && barcodeBuf.current.length > 0) barcodeBuf.current = ''
+        barcodeBuf.current += e.key
+        lastKeyTime.current = now
+        return
+      }
+      if (e.key === 'Enter') {
+        const buf = barcodeBuf.current
+        barcodeBuf.current = ''
+        if (buf.length >= 6 && !isTyping(e.target)) {
+          // Hardware-scanner-like burst: search and auto-add the first exact-barcode match
+          void (async () => {
+            try {
+              const list = await productApi.list({ search: buf })
+              const exact = list.find(p => p.barcode === buf) ?? list[0]
+              if (exact) addToCart(exact)
+              else toast.error(`ไม่พบสินค้า: ${buf}`)
+            } catch (err) { apiToastError(err) }
+          })()
+          return
+        }
+        // Search input focused + Enter → add first matching product
+        if (e.target === searchInputRef.current && displayProducts[0]) {
+          e.preventDefault()
+          addToCart(displayProducts[0])
+          setSearchQ('')
+          return
+        }
+      }
+      if (e.key === 'Escape' && e.target === searchInputRef.current) {
+        setSearchQ('')
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [cart.length, saleType, netTotal, saving, displayProducts])
 
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col">
@@ -122,7 +192,7 @@ export default function SalesPage() {
         <div className="flex items-center justify-between pb-3 shrink-0">
           <h1 className="text-2xl font-bold">ขายสินค้า (POS)</h1>
           {currentGoldPrice && (
-            <div className="hidden sm:flex items-center gap-3 text-xs rounded-lg px-3 py-1.5 text-white" style={{ background: 'linear-gradient(135deg, #b8860b, #daa520)' }}>
+            <div className="hidden sm:flex items-center gap-3 text-xs rounded-lg px-3 py-1.5 text-white bg-gradient-to-br from-gold-600 to-gold-500">
               <span className="font-semibold">ทองวันนี้</span>
               <span>แท่งรับซื้อ ฿{currentGoldPrice.gold_bar_buy.toLocaleString('th-TH')}/บาท</span>
               <span className="opacity-60">|</span>
@@ -142,7 +212,7 @@ export default function SalesPage() {
             <div className="flex gap-2 mb-3 shrink-0">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input className="pl-9" placeholder="ค้นหาสินค้า, สแกนบาร์โค้ด..." value={searchQ} onChange={e => setSearchQ(e.target.value)} />
+                <Input ref={searchInputRef} className="pl-9" placeholder="ค้นหาสินค้า, สแกนบาร์โค้ด...  (Ctrl+F)" value={searchQ} onChange={e => setSearchQ(e.target.value)} />
               </div>
             </div>
             <div className="flex-1 overflow-y-auto">
@@ -154,20 +224,20 @@ export default function SalesPage() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                   {displayProducts.map(p => (
                     <button key={p.id} onClick={() => addToCart(p)}
-                      className="text-left rounded-xl border bg-white p-3 hover:border-yellow-400 hover:shadow-md transition-all">
-                      <div className="rounded-lg bg-yellow-50 flex items-center justify-center h-14 mb-2 relative">
-                        <span className="text-2xl">💎</span>
-                        {p.gold_type && <span className="absolute top-1 left-1 text-xs bg-yellow-500 text-white px-1.5 py-0.5 rounded">{p.gold_type}</span>}
+                      className="text-left rounded-xl border bg-card p-3 hover:border-gold-400 hover:shadow-md transition-all">
+                      <div className="rounded-lg bg-gold-50 flex items-center justify-center h-14 mb-2 relative">
+                        <Gem className="h-7 w-7 text-gold-600" />
+                        {p.gold_type && <span className="absolute top-1 left-1 text-xs bg-gold-500 text-white px-1.5 py-0.5 rounded">{p.gold_type}</span>}
                       </div>
                       <p className="font-semibold text-sm truncate">{p.name}</p>
                       <p className="text-xs text-muted-foreground">{fmtDec(p.weight)}g · {fmtDec(p.weight / BAHT_GRAM)} บาททอง</p>
                       {goldSellPricePerBaht > 0 ? (
                         <div className="mt-1">
-                          <p className="font-bold text-yellow-700">฿{fmt(calcGoldPrice(p, goldSellPricePerBaht))}</p>
+                          <p className="font-bold text-gold-700">฿{fmt(calcGoldPrice(p, goldSellPricePerBaht))}</p>
                           {p.labor_cost > 0 && <p className="text-xs text-muted-foreground">ค่ากำเหน็จ ฿{fmt(p.labor_cost)}</p>}
                         </div>
                       ) : (
-                        <p className="font-bold text-yellow-700 mt-1">฿{fmt(p.price)}</p>
+                        <p className="font-bold text-gold-700 mt-1">฿{fmt(p.price)}</p>
                       )}
                     </button>
                   ))}
@@ -177,26 +247,24 @@ export default function SalesPage() {
           </div>
 
           {/* Right: Cart Panel */}
-          <div className="w-80 xl:w-96 flex flex-col border-l pl-4 min-h-0">
-            {/* Sale Type */}
-            <div className="flex gap-1 mb-3 shrink-0">
-              {(['sell', 'exchange', 'buy_old'] as const).map(t => (
-                <button key={t} onClick={() => setSaleType(t)}
-                  className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${saleType === t ? 'bg-yellow-500 text-white border-yellow-500' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                  {saleTypeLabels[t]}
-                </button>
-              ))}
-            </div>
-
-            {/* Customer */}
-            <div className="mb-3 shrink-0">
+          <aside className="w-80 xl:w-96 flex flex-col border-l pl-4 min-h-0">
+            {/* Header: sale type + customer (sticky top) */}
+            <div className="shrink-0 space-y-3 pb-3 border-b">
+              <div className="flex gap-1">
+                {(['sell', 'exchange', 'buy_old'] as const).map(t => (
+                  <button key={t} onClick={() => setSaleType(t)}
+                    className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${saleType === t ? 'bg-gold-500 text-white border-gold-500' : 'border-border text-muted-foreground hover:bg-muted'}`}>
+                    {saleTypeLabels[t]}
+                  </button>
+                ))}
+              </div>
               {selectedCustomer ? (
-                <div className="flex items-center gap-2 rounded-lg bg-yellow-50 border border-yellow-200 px-3 py-2">
+                <div className="flex items-center gap-2 rounded-lg bg-gold-50 border border-gold-200 px-3 py-2">
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-sm truncate">{selectedCustomer.full_name}</p>
                     {customerPoints > 0 && <p className="text-xs text-muted-foreground">คะแนนสะสม: {customerPoints} คะแนน</p>}
                   </div>
-                  <button onClick={() => { setSelectedCustomer(null); setPointsUsed(0) }}><X className="h-4 w-4 text-gray-400" /></button>
+                  <button onClick={() => { setSelectedCustomer(null); setPointsUsed(0) }}><X className="h-4 w-4 text-muted-foreground" /></button>
                 </div>
               ) : (
                 <Button variant="outline" size="sm" className="w-full" onClick={() => setCustomerSearchOpen(true)}>
@@ -205,24 +273,24 @@ export default function SalesPage() {
               )}
             </div>
 
-            {/* Cart Items */}
-            <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
+            {/* Scroll body: cart + old gold */}
+            <div className="flex-1 overflow-y-auto py-3 space-y-2 min-h-0">
               {cart.length === 0 ? (
                 <p className="text-center text-muted-foreground text-sm py-8">ตะกร้าว่างเปล่า</p>
               ) : cart.map((item, idx) => (
-                <div key={idx} className="rounded-lg border bg-white p-2.5 text-sm">
+                <div key={idx} className="rounded-lg border bg-card p-2.5 text-sm">
                   <div className="flex items-start justify-between gap-1">
                     <p className="font-semibold truncate flex-1">{item.product.name}</p>
-                    <button onClick={() => removeFromCart(idx)}><X className="h-3.5 w-3.5 text-gray-400" /></button>
+                    <button onClick={() => removeFromCart(idx)}><X className="h-4 w-4 text-muted-foreground" /></button>
                   </div>
                   <p className="text-xs text-muted-foreground">{fmtDec(item.product.weight)}g</p>
                   <div className="flex items-center justify-between mt-1.5">
                     <button onClick={() => { setEditPriceIdx(idx); setEditPriceVal(String(item.unitPrice)) }}
-                      className="flex items-center gap-1 text-yellow-700 font-bold hover:underline">
+                      className="flex items-center gap-1 text-gold-700 font-bold hover:underline">
                       ฿{fmt(item.unitPrice)}<Edit2 className="h-3 w-3" />
                     </button>
                     <button onClick={() => { setItemDiscountIdx(idx); setItemDiscountVal(item.discount > 0 ? String(item.discount) : ''); setItemDiscountType(item.discountType) }}
-                      className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800">
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
                       <Tag className="h-3 w-3" />ส่วนลด
                     </button>
                   </div>
@@ -233,35 +301,34 @@ export default function SalesPage() {
                   )}
                 </div>
               ))}
+
+              {saleType !== 'sell' && (
+                <div className="border-t pt-2 mt-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-sm font-semibold">ทองเก่า ({oldGoldItems.length})</p>
+                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setOldGoldOpen(true)}>+ เพิ่ม</Button>
+                  </div>
+                  {oldGoldItems.map((og, i) => (
+                    <div key={i} className="flex items-center justify-between text-xs py-1">
+                      <span className="truncate flex-1">{og.description || `${og.gold_type} ${og.weight}g`}</span>
+                      <div className="flex items-center gap-1">
+                        <span className="font-medium">฿{fmt(og.total)}</span>
+                        <button onClick={() => setOldGoldItems(prev => prev.filter((_, j) => j !== i))}><X className="h-3 w-3 text-muted-foreground" /></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Old Gold */}
-            {saleType !== 'sell' && (
-              <div className="border-t pt-2 mt-2 shrink-0">
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-sm font-semibold">ทองเก่า ({oldGoldItems.length})</p>
-                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setOldGoldOpen(true)}>+ เพิ่ม</Button>
-                </div>
-                {oldGoldItems.map((og, i) => (
-                  <div key={i} className="flex items-center justify-between text-xs py-1">
-                    <span className="truncate flex-1">{og.description || `${og.gold_type} ${og.weight}g`}</span>
-                    <div className="flex items-center gap-1">
-                      <span className="font-medium">฿{fmt(og.total)}</span>
-                      <button onClick={() => setOldGoldItems(prev => prev.filter((_, j) => j !== i))}><X className="h-3 w-3 text-gray-400" /></button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Summary */}
-            <div className="border-t pt-3 mt-2 space-y-1 text-sm shrink-0">
+            {/* Sticky footer: summary + pay button */}
+            <div className="shrink-0 border-t pt-3 space-y-1 text-sm bg-background">
               <div className="flex justify-between"><span className="text-muted-foreground">ยอดรวม</span><span>฿{fmt(subtotal)}</span></div>
               {globalDiscountAmount > 0 && <div className="flex justify-between text-red-600"><span>ส่วนลดท้ายบิล</span><span>-฿{fmt(globalDiscountAmount)}</span></div>}
               {oldGoldValue > 0 && <div className="flex justify-between text-orange-600"><span>หักทองเก่า</span><span>-฿{fmt(oldGoldValue)}</span></div>}
               {pointsUsed > 0 && <div className="flex justify-between text-blue-600"><span>ใช้คะแนน ({pointsUsed})</span><span>-฿{fmt(pointsUsed)}</span></div>}
               <div className="flex justify-between font-bold text-base border-t pt-1">
-                <span>ยอดสุทธิ</span><span className="text-yellow-700">฿{fmt(netTotal)}</span>
+                <span>ยอดสุทธิ</span><span className="text-gold-700">฿{fmt(netTotal)}</span>
               </div>
               <div className="flex gap-2 pt-1">
                 <Button variant="outline" size="sm" className="flex-1 text-xs"
@@ -271,20 +338,20 @@ export default function SalesPage() {
                 {selectedCustomer && customerPoints > 0 && (
                   <Button variant="outline" size="sm" className="flex-1 text-xs"
                     onClick={() => { setPointsInput(pointsUsed > 0 ? String(pointsUsed) : ''); setPointsOpen(true) }}>
-                    ⭐ ใช้คะแนน
+                    <Sparkles className="h-3 w-3 mr-1" />ใช้คะแนน
                   </Button>
                 )}
               </div>
               <div className="flex gap-2 pt-1">
-                <Button variant="ghost" size="sm" className="text-gray-400" onClick={clearCart}><Trash2 className="h-4 w-4" /></Button>
-                <Button className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white"
+                <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={clearCart}><Trash2 className="h-4 w-4" /></Button>
+                <Button className="flex-1 bg-gold-500 hover:bg-gold-600 text-white"
                   disabled={saving || (cart.length === 0 && saleType !== 'buy_old')}
                   onClick={() => { setPayAmount(String(netTotal)); setPaymentOpen(true) }}>
                   ชำระเงิน ฿{fmt(netTotal)}
                 </Button>
               </div>
             </div>
-          </div>
+          </aside>
         </TabsContent>
 
         {/* ── History Tab ── */}
@@ -303,8 +370,8 @@ export default function SalesPage() {
             <div className="space-y-2">
               {salesHistory.map(s => (
                 <div key={s.id} className={`rounded-lg border bg-white p-3 flex items-center gap-3 ${s.status === 'cancelled' ? 'opacity-60' : ''}`}>
-                  <div className={`rounded-full p-2 shrink-0 ${s.status === 'cancelled' ? 'bg-red-50' : 'bg-yellow-50'}`}>
-                    <Receipt className={`h-4 w-4 ${s.status === 'cancelled' ? 'text-red-400' : 'text-yellow-600'}`} />
+                  <div className={`rounded-full p-2 shrink-0 ${s.status === 'cancelled' ? 'bg-red-50' : 'bg-gold-50'}`}>
+                    <Receipt className={`h-4 w-4 ${s.status === 'cancelled' ? 'text-red-400' : 'text-gold-600'}`} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className={`font-semibold text-sm ${s.status === 'cancelled' ? 'line-through text-gray-400' : ''}`}>{s.sale_number}</p>

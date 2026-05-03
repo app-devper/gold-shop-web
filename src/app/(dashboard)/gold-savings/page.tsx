@@ -3,10 +3,11 @@
 import { useState } from 'react'
 import useSWR from 'swr'
 import { format } from 'date-fns'
-import { Eye, MoreHorizontal, PiggyBank, Scale, Plus } from 'lucide-react'
+import { Eye, MoreHorizontal, PiggyBank, Scale, Plus, Gem } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { goldSavingApi, customerApi, goldPriceApi } from '@/lib/gold-api'
+import { apiToastError } from '@/lib/api-toast'
 import type { GoldSaving, Customer } from '@/types/gold'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -39,6 +40,8 @@ export default function GoldSavingsPage() {
   const [newCustomerQ, setNewCustomerQ] = useState('')
   const [newCustomer, setNewCustomer] = useState<Customer | null>(null)
   const [newSavingType, setNewSavingType] = useState<'weight' | 'money'>('weight')
+  const [newMinDeposit, setNewMinDeposit] = useState('')
+  const [newMinWithdrawal, setNewMinWithdrawal] = useState('')
 
   const getCustomerName = (id: string) => customers?.find(c => c.id === id)?.full_name ?? id
   // ราคา/บาท (หน่วยทอง) และ ราคา/กรัม
@@ -71,22 +74,38 @@ export default function GoldSavingsPage() {
 
   const handleAction = async () => {
     if (!actionDialog) return
+    if (amountNum <= 0) { toast.error('กรุณากรอกจำนวนที่มากกว่า 0'); return }
+    if (!currentGoldPrice || goldBuyPricePerBaht <= 0) {
+      toast.error('ยังไม่มีราคาทองปัจจุบัน — กรุณาตั้งราคาที่หน้า "ราคาทอง" ก่อน')
+      return
+    }
     try {
       setSaving(true)
       const { type, account } = actionDialog
+
+      // Server contract: amount unit follows saving_type.
+      //   ByMoney  → amount = baht (and Withdraw asCash=true also = baht)
+      //   ByWeight → amount = grams (Withdraw asCash=true = baht override)
+      const isMoneyAccount = account.saving_type === 'money'
+
       if (type === 'deposit') {
-        await goldSavingApi.deposit(account.id, { amount: goldGrams })
-        toast.success('ฝากทองสำเร็จ')
+        const apiAmount = isMoneyAccount ? cashValue : goldGrams
+        if (apiAmount <= 0) { toast.error('จำนวนไม่ถูกต้อง'); return }
+        await goldSavingApi.deposit(account.id, { amount: apiAmount })
+        toast.success('ฝากสำเร็จ')
       } else {
-        // as_cash=true → API expects amount in baht; as_cash=false → grams
+        // Withdraw amount unit:
+        //   asCash=true  → baht (server divides by price to get grams)
+        //   asCash=false → grams (physical gold)
         const payload = withdrawAsCash
           ? { amount: cashValue, as_cash: true }
           : { amount: goldGrams, as_cash: false }
+        if (payload.amount <= 0) { toast.error('จำนวนไม่ถูกต้อง'); return }
         await goldSavingApi.withdraw(account.id, payload)
         toast.success(withdrawAsCash ? 'ถอนเป็นเงินสดสำเร็จ' : 'ถอนทองสำเร็จ')
       }
       mutate(); setActionDialog(null); setAmount(''); setWithdrawAsCash(false)
-    } catch (e: any) { toast.error(e.response?.data?.message || 'เกิดข้อผิดพลาด') }
+    } catch (e) { apiToastError(e) }
     finally { setSaving(false) }
   }
 
@@ -94,33 +113,40 @@ export default function GoldSavingsPage() {
     if (!newCustomer) { toast.error('กรุณาเลือกลูกค้า'); return }
     try {
       setSaving(true)
-      await goldSavingApi.open({ customer_id: newCustomer.id, saving_type: newSavingType })
+      await goldSavingApi.open({
+        customer_id: newCustomer.id,
+        saving_type: newSavingType,
+        min_deposit: parseFloat(newMinDeposit) || 0,
+        min_withdrawal: parseFloat(newMinWithdrawal) || 0,
+      })
       toast.success('เปิดบัญชีออมทองสำเร็จ')
-      mutate(); setOpenAccountOpen(false); setNewCustomer(null); setNewCustomerQ('')
-    } catch (e: any) { toast.error(e.response?.data?.message || 'เกิดข้อผิดพลาด') }
+      mutate(); setOpenAccountOpen(false)
+      setNewCustomer(null); setNewCustomerQ('')
+      setNewMinDeposit(''); setNewMinWithdrawal('')
+    } catch (e) { apiToastError(e) }
     finally { setSaving(false) }
   }
 
   const handleClose = async (id: string) => {
     if (!confirm('ยืนยันปิดบัญชีออมทอง?')) return
     try { await goldSavingApi.close(id); toast.success('ปิดบัญชีแล้ว'); mutate() }
-    catch (e: any) { toast.error(e.response?.data?.message || 'เกิดข้อผิดพลาด') }
+    catch (e) { apiToastError(e) }
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">ออมทอง</h1>
-        <Button onClick={() => setOpenAccountOpen(true)} className="bg-yellow-500 hover:bg-yellow-600 text-white">
+        <Button onClick={() => setOpenAccountOpen(true)} className="bg-gold-500 hover:bg-gold-600 text-white">
           <Plus className="h-4 w-4 mr-2" />เปิดบัญชีใหม่
         </Button>
       </div>
 
       {/* Gold price info bar */}
       {currentGoldPrice && (
-        <div className="rounded-xl p-4 text-white flex flex-wrap gap-4 items-center" style={{ background: 'linear-gradient(135deg, #b8860b 0%, #daa520 50%, #b8860b 100%)' }}>
+        <div className="rounded-xl p-4 text-white flex flex-wrap gap-4 items-center bg-gradient-to-br from-gold-700 via-gold-500 to-gold-700">
           <div className="flex items-center gap-2">
-            <span className="text-lg">💎</span>
+            <Gem className="h-5 w-5" />
             <span className="font-semibold text-sm">ราคาทองปัจจุบัน</span>
           </div>
           <div className="flex flex-wrap gap-4 text-sm">
@@ -133,12 +159,12 @@ export default function GoldSavingsPage() {
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card><CardContent className="pt-5">
-          <div className="inline-flex rounded-lg p-2 mb-3 bg-yellow-500"><PiggyBank className="h-5 w-5 text-white" /></div>
+          <div className="inline-flex rounded-lg p-2 mb-3 bg-gold-500"><PiggyBank className="h-5 w-5 text-white" /></div>
           <p className="text-2xl font-bold">{activeAccounts.length}</p>
           <p className="text-sm text-muted-foreground">บัญชีที่เปิดอยู่</p>
         </CardContent></Card>
         <Card><CardContent className="pt-5">
-          <div className="inline-flex rounded-lg p-2 mb-3 bg-yellow-600"><Scale className="h-5 w-5 text-white" /></div>
+          <div className="inline-flex rounded-lg p-2 mb-3 bg-gold-600"><Scale className="h-5 w-5 text-white" /></div>
           <p className="text-2xl font-bold">{fmt(totalGoldBalance / BAHT_GRAM)} บาททอง</p>
           <p className="text-xs text-muted-foreground">{fmt(totalGoldBalance)} g</p>
           <p className="text-sm text-muted-foreground mt-1">ยอดทองรวม</p>
@@ -171,9 +197,9 @@ export default function GoldSavingsPage() {
                       <TableCell className="font-mono font-medium">{a.account_number}</TableCell>
                       <TableCell>{getCustomerName(a.customer_id)}</TableCell>
                       <TableCell>{savingTypeLabel[a.saving_type] ?? a.saving_type}</TableCell>
-                      <TableCell className="font-medium text-yellow-700">
+                      <TableCell className="font-medium text-gold-700">
                         <p>{fmt(a.gold_balance / BAHT_GRAM)} บาททอง</p>
-                        <p className="text-xs text-yellow-600/70">{fmt(a.gold_balance)} g</p>
+                        <p className="text-xs text-gold-600/70">{fmt(a.gold_balance)} g</p>
                       </TableCell>
                       <TableCell>฿{fmtCash(a.cash_balance)}</TableCell>
                       <TableCell><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor[a.status]}`}>{statusLabel[a.status] ?? a.status}</span></TableCell>
@@ -210,8 +236,8 @@ export default function GoldSavingsPage() {
                 <div><p className="text-xs text-muted-foreground">ประเภท</p><p className="font-semibold">{savingTypeLabel[detail.saving_type] ?? detail.saving_type}</p></div>
                 <div>
                   <p className="text-xs text-muted-foreground">ยอดทองคงเหลือ</p>
-                  <p className="font-bold text-yellow-700 text-lg">{fmt(detail.gold_balance / BAHT_GRAM)} บาททอง</p>
-                  <p className="text-xs text-yellow-600">{fmt(detail.gold_balance)} g</p>
+                  <p className="font-bold text-gold-700 text-lg">{fmt(detail.gold_balance / BAHT_GRAM)} บาททอง</p>
+                  <p className="text-xs text-gold-600">{fmt(detail.gold_balance)} g</p>
                 </div>
                 <div><p className="text-xs text-muted-foreground">ยอดเงินคงเหลือ</p><p className="font-bold text-green-700 text-lg">฿{fmtCash(detail.cash_balance)}</p></div>
                 <div><p className="text-xs text-muted-foreground">วันที่เปิดบัญชี</p><p className="font-semibold">{format(new Date(detail.opened_date), 'dd/MM/yyyy')}</p></div>
@@ -253,12 +279,12 @@ export default function GoldSavingsPage() {
           <DialogHeader><DialogTitle>{actionDialog?.type === 'deposit' ? 'ฝากทอง' : (withdrawAsCash ? 'ถอนเป็นเงินสด' : 'ถอนทอง')}</DialogTitle></DialogHeader>
           {actionDialog && (
             <div className="space-y-4">
-              <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-3 text-sm">
+              <div className="rounded-lg bg-gold-50 border border-gold-200 p-3 text-sm">
                 <p className="font-semibold">{actionDialog.account.account_number} · {getCustomerName(actionDialog.account.customer_id)}</p>
                 <div className="flex items-baseline gap-2 mt-0.5">
                   <span className="text-muted-foreground text-xs">ยอดทองคงเหลือ:</span>
-                  <span className="font-bold text-yellow-700">{fmt(actionDialog.account.gold_balance / BAHT_GRAM)} บาททอง</span>
-                  <span className="text-xs text-yellow-600">({fmt(actionDialog.account.gold_balance)} g)</span>
+                  <span className="font-bold text-gold-700">{fmt(actionDialog.account.gold_balance / BAHT_GRAM)} บาททอง</span>
+                  <span className="text-xs text-gold-600">({fmt(actionDialog.account.gold_balance)} g)</span>
                 </div>
                 {goldBuyPrice > 0 && (
                 <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
@@ -270,16 +296,16 @@ export default function GoldSavingsPage() {
               <div>
                 <Label className="mb-2 block">กรอกเป็น</Label>
                 <div className="flex gap-1">
-                  <button onClick={() => setInputMode('weight')} className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${inputMode === 'weight' ? 'bg-yellow-500 text-white border-yellow-500' : 'border-gray-200 hover:bg-gray-50'}`}>กรัม (g)</button>
-                  <button onClick={() => setInputMode('baht')} className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${inputMode === 'baht' ? 'bg-yellow-500 text-white border-yellow-500' : 'border-gray-200 hover:bg-gray-50'}`}>บาททอง</button>
-                  <button onClick={() => setInputMode('cash')} className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${inputMode === 'cash' ? 'bg-yellow-500 text-white border-yellow-500' : 'border-gray-200 hover:bg-gray-50'}`}>เงินบาท (฿)</button>
+                  <button onClick={() => setInputMode('weight')} className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${inputMode === 'weight' ? 'bg-gold-500 text-white border-gold-500' : 'border-gray-200 hover:bg-gray-50'}`}>กรัม (g)</button>
+                  <button onClick={() => setInputMode('baht')} className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${inputMode === 'baht' ? 'bg-gold-500 text-white border-gold-500' : 'border-gray-200 hover:bg-gray-50'}`}>บาททอง</button>
+                  <button onClick={() => setInputMode('cash')} className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${inputMode === 'cash' ? 'bg-gold-500 text-white border-gold-500' : 'border-gray-200 hover:bg-gray-50'}`}>เงินบาท (฿)</button>
                 </div>
               </div>
               {actionDialog.type === 'withdraw' && (
                 <div>
                   <Label className="mb-2 block">รับเป็น</Label>
                   <div className="flex gap-1">
-                    <button onClick={() => setWithdrawAsCash(false)} className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${!withdrawAsCash ? 'bg-yellow-500 text-white border-yellow-500' : 'border-gray-200 hover:bg-gray-50'}`}>ถอนเป็นทอง</button>
+                    <button onClick={() => setWithdrawAsCash(false)} className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${!withdrawAsCash ? 'bg-gold-500 text-white border-gold-500' : 'border-gray-200 hover:bg-gray-50'}`}>ถอนเป็นทอง</button>
                     <button onClick={() => setWithdrawAsCash(true)} className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${withdrawAsCash ? 'bg-green-600 text-white border-green-600' : 'border-gray-200 hover:bg-gray-50'}`}>ถอนเป็นเงินสด</button>
                   </div>
                 </div>
@@ -292,28 +318,30 @@ export default function GoldSavingsPage() {
               </div>
               {amountNum > 0 && (
                 <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm space-y-1.5">
-                  <p className="text-xs font-semibold text-amber-800">สรุปการคำนวณ</p>
+                  <p className="text-xs font-semibold text-amber-800">
+                    สรุปการคำนวณ — บัญชีนี้บันทึกเป็น{actionDialog.account.saving_type === 'money' ? 'เงินบาท' : 'น้ำหนักทอง (กรัม)'}
+                  </p>
                   {inputMode === 'baht' && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">{fmt(amountNum)} บาททอง × {BAHT_GRAM} g</span>
-                      <span className="font-bold text-yellow-700">{fmt(goldGrams)} g</span>
+                      <span className="font-bold text-gold-700">{fmt(goldGrams)} g</span>
                     </div>
                   )}
                   {inputMode === 'cash' && goldBuyPricePerGram > 0 && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">฿{fmtCash(amountNum)} ÷ ฿{fmtCash(Math.round(goldBuyPricePerGram))}/g</span>
-                      <span className="font-bold text-yellow-700">{fmt(goldGrams)} g</span>
+                      <span className="font-bold text-gold-700">{fmt(goldGrams)} g</span>
                     </div>
                   )}
                   {inputMode === 'weight' && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">น้ำหนัก</span>
-                      <span className="font-bold text-yellow-700">{fmt(goldGrams)} g</span>
+                      <span className="font-bold text-gold-700">{fmt(goldGrams)} g</span>
                     </div>
                   )}
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">= บาททอง</span>
-                    <span className="font-semibold text-yellow-600">{fmt(bahtValue)} บาททอง</span>
+                    <span className="font-semibold text-gold-600">{fmt(bahtValue)} บาททอง</span>
                   </div>
                   {goldBuyPricePerBaht > 0 && (
                     <div className="flex justify-between border-t border-amber-200 pt-1.5">
@@ -321,13 +349,26 @@ export default function GoldSavingsPage() {
                       <span className="font-bold text-green-700">฿{fmtCash(Math.round(cashValue))}</span>
                     </div>
                   )}
+                  {/* Server-bound preview: shows the exact unit being sent */}
+                  <div className="flex justify-between border-t border-amber-200 pt-1.5">
+                    <span className="text-xs text-muted-foreground">
+                      ส่งให้ระบบ
+                      {actionDialog.type === 'withdraw' && withdrawAsCash ? ' (ถอนเงินสด)' : ''}
+                    </span>
+                    <span className="text-xs font-semibold">
+                      {(actionDialog.type === 'deposit' && actionDialog.account.saving_type === 'money')
+                        || (actionDialog.type === 'withdraw' && withdrawAsCash)
+                        ? `฿${fmtCash(Math.round(cashValue))}`
+                        : `${fmt(goldGrams)} g`}
+                    </span>
+                  </div>
                 </div>
               )}
             </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setActionDialog(null)}>ยกเลิก</Button>
-            <Button onClick={handleAction} disabled={saving || !amountNum} className="bg-yellow-500 hover:bg-yellow-600 text-white">
+            <Button onClick={handleAction} disabled={saving || !amountNum} className="bg-gold-500 hover:bg-gold-600 text-white">
               {saving ? 'กำลังบันทึก...' : 'ยืนยัน'}
             </Button>
           </DialogFooter>
@@ -342,7 +383,7 @@ export default function GoldSavingsPage() {
             <div>
               <Label className="mb-2 block">ลูกค้า</Label>
               {newCustomer ? (
-                <div className="flex items-center gap-2 rounded-lg bg-yellow-50 border border-yellow-200 px-3 py-2">
+                <div className="flex items-center gap-2 rounded-lg bg-gold-50 border border-gold-200 px-3 py-2">
                   <div className="flex-1"><p className="font-semibold text-sm">{newCustomer.full_name}</p><p className="text-xs text-muted-foreground">{newCustomer.phone}</p></div>
                   <button onClick={() => setNewCustomer(null)} className="text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
                 </div>
@@ -354,7 +395,7 @@ export default function GoldSavingsPage() {
                       {filteredNewCustomers.length === 0
                         ? <p className="text-center text-sm text-muted-foreground py-3">ไม่พบลูกค้า</p>
                         : filteredNewCustomers.map(c => (
-                          <button key={c.id} onClick={() => { setNewCustomer(c); setNewCustomerQ('') }} className="w-full text-left px-3 py-2 hover:bg-yellow-50 text-sm">
+                          <button key={c.id} onClick={() => { setNewCustomer(c); setNewCustomerQ('') }} className="w-full text-left px-3 py-2 hover:bg-gold-50 text-sm">
                             <p className="font-medium">{c.full_name}</p><p className="text-xs text-muted-foreground">{c.phone}</p>
                           </button>
                         ))
@@ -373,11 +414,44 @@ export default function GoldSavingsPage() {
                   <SelectItem value="money">ออมเงิน (บาท)</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                {newSavingType === 'money'
+                  ? 'ลูกค้าฝาก/ถอนเป็นเงินบาท ระบบแปลงเป็นน้ำหนักทองตามราคา ณ วันนั้น'
+                  : 'ลูกค้าฝาก/ถอนเป็นน้ำหนักทอง (กรัม) โดยตรง'}
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="mb-2 block">
+                  ขั้นต่ำการฝาก ({newSavingType === 'money' ? '฿' : 'g'})
+                </Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step={newSavingType === 'money' ? '1' : '0.01'}
+                  value={newMinDeposit}
+                  onChange={e => setNewMinDeposit(e.target.value)}
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <Label className="mb-2 block">
+                  ขั้นต่ำการถอน ({newSavingType === 'money' ? '฿' : 'g'})
+                </Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step={newSavingType === 'money' ? '1' : '0.01'}
+                  value={newMinWithdrawal}
+                  onChange={e => setNewMinWithdrawal(e.target.value)}
+                  placeholder="0"
+                />
+              </div>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpenAccountOpen(false)}>ยกเลิก</Button>
-            <Button onClick={handleOpenAccount} disabled={saving || !newCustomer} className="bg-yellow-500 hover:bg-yellow-600 text-white">
+            <Button onClick={handleOpenAccount} disabled={saving || !newCustomer} className="bg-gold-500 hover:bg-gold-600 text-white">
               {saving ? 'กำลังบันทึก...' : 'เปิดบัญชี'}
             </Button>
           </DialogFooter>

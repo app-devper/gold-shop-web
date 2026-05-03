@@ -9,6 +9,7 @@ import { useForm } from 'react-hook-form'
 import * as z from 'zod'
 
 import { branchApi } from '@/lib/gold-api'
+import { apiToastError } from '@/lib/api-toast'
 import type { Branch } from '@/types/gold'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -43,14 +44,14 @@ export default function BranchesPage() {
       else await branchApi.create(values)
       toast.success(editing ? 'แก้ไขสาขาสำเร็จ' : 'เพิ่มสาขาสำเร็จ')
       mutate(); setOpen(false)
-    } catch (e: any) { toast.error(e.response?.data?.message || 'เกิดข้อผิดพลาด') }
+    } catch (e) { apiToastError(e) }
     finally { setSaving(false) }
   }
 
   const onDelete = async (id: string) => {
     if (!confirm('ยืนยันลบสาขานี้?')) return
     try { await branchApi.delete(id); toast.success('ลบสาขาแล้ว'); mutate() }
-    catch (e: any) { toast.error(e.response?.data?.message || 'เกิดข้อผิดพลาด') }
+    catch (e) { apiToastError(e) }
   }
 
   return (
@@ -77,7 +78,7 @@ export default function BranchesPage() {
                       <TableCell className="font-mono font-medium">{b.code}</TableCell>
                       <TableCell>{b.name}</TableCell>
                       <TableCell>{b.phone}</TableCell>
-                      <TableCell>{b.code === 'HQ' ? <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">HQ</span> : '—'}</TableCell>
+                      <TableCell>{b.code === 'HQ' ? <span className="text-xs bg-gold-100 text-gold-700 px-2 py-0.5 rounded-full">HQ</span> : '—'}</TableCell>
                       <TableCell><span className={`text-xs px-2 py-0.5 rounded-full ${b.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{b.is_active ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}</span></TableCell>
                       <TableCell>
                         <DropdownMenu>

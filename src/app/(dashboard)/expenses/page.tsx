@@ -10,6 +10,7 @@ import { useForm } from 'react-hook-form'
 import * as z from 'zod'
 
 import { expenseApi } from '@/lib/gold-api'
+import { apiToastError } from '@/lib/api-toast'
 import { useAuthStore } from '@/store/auth'
 import type { Expense, ExpenseCategory } from '@/types/gold'
 import { Button } from '@/components/ui/button'
@@ -35,7 +36,7 @@ type FormValues = {
 }
 
 const statusColor: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-700',
+  pending: 'bg-gold-100 text-gold-700',
   approved: 'bg-green-100 text-green-700',
   rejected: 'bg-red-100 text-red-700',
 }
@@ -67,7 +68,7 @@ export default function ExpensesPage() {
       await expenseApi.create(values)
       toast.success('บันทึกค่าใช้จ่ายสำเร็จ')
       mutate(); setOpen(false)
-    } catch (e: any) { toast.error(e.response?.data?.message || 'เกิดข้อผิดพลาด') }
+    } catch (e) { apiToastError(e) }
     finally { setSaving(false) }
   }
 

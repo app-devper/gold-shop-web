@@ -10,6 +10,7 @@ import { useForm } from 'react-hook-form'
 import * as z from 'zod'
 
 import { goldPriceApi } from '@/lib/gold-api'
+import { apiToastError } from '@/lib/api-toast'
 import type { GoldPrice } from '@/types/gold'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -71,15 +72,15 @@ function GoldCalculator({ current }: { current: GoldPrice }) {
           <div>
             <p className="text-xs text-muted-foreground mb-1.5">ประเภทการซื้อขาย</p>
             <div className="flex gap-1">
-              <button onClick={() => setMode('sell')} className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${mode === 'sell' ? 'bg-yellow-500 text-white border-yellow-500' : 'border-gray-200 hover:bg-gray-50'}`}>ซื้อ (ลูกค้าซื้อ)</button>
+              <button onClick={() => setMode('sell')} className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${mode === 'sell' ? 'bg-gold-500 text-white border-gold-500' : 'border-gray-200 hover:bg-gray-50'}`}>ซื้อ (ลูกค้าซื้อ)</button>
               <button onClick={() => setMode('buy')} className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${mode === 'buy' ? 'bg-green-500 text-white border-green-500' : 'border-gray-200 hover:bg-gray-50'}`}>รับซื้อคืน</button>
             </div>
           </div>
           <div>
             <p className="text-xs text-muted-foreground mb-1.5">ประเภททอง</p>
             <div className="flex gap-1">
-              <button onClick={() => setGoldType('bar')} className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${goldType === 'bar' ? 'bg-yellow-500 text-white border-yellow-500' : 'border-gray-200 hover:bg-gray-50'}`}>ทองแท่ง</button>
-              <button onClick={() => setGoldType('ornament')} className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${goldType === 'ornament' ? 'bg-yellow-500 text-white border-yellow-500' : 'border-gray-200 hover:bg-gray-50'}`}>ทองรูปพรรณ</button>
+              <button onClick={() => setGoldType('bar')} className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${goldType === 'bar' ? 'bg-gold-500 text-white border-gold-500' : 'border-gray-200 hover:bg-gray-50'}`}>ทองแท่ง</button>
+              <button onClick={() => setGoldType('ornament')} className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${goldType === 'ornament' ? 'bg-gold-500 text-white border-gold-500' : 'border-gray-200 hover:bg-gray-50'}`}>ทองรูปพรรณ</button>
             </div>
           </div>
         </div>
@@ -89,8 +90,8 @@ function GoldCalculator({ current }: { current: GoldPrice }) {
           <div>
             <p className="text-xs text-muted-foreground mb-1.5">หน่วยน้ำหนัก</p>
             <div className="flex gap-1">
-              <button onClick={() => setInputUnit('baht')} className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${inputUnit === 'baht' ? 'bg-yellow-500 text-white border-yellow-500' : 'border-gray-200 hover:bg-gray-50'}`}>บาท</button>
-              <button onClick={() => setInputUnit('gram')} className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${inputUnit === 'gram' ? 'bg-yellow-500 text-white border-yellow-500' : 'border-gray-200 hover:bg-gray-50'}`}>กรัม</button>
+              <button onClick={() => setInputUnit('baht')} className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${inputUnit === 'baht' ? 'bg-gold-500 text-white border-gold-500' : 'border-gray-200 hover:bg-gray-50'}`}>บาท</button>
+              <button onClick={() => setInputUnit('gram')} className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${inputUnit === 'gram' ? 'bg-gold-500 text-white border-gold-500' : 'border-gray-200 hover:bg-gray-50'}`}>กรัม</button>
             </div>
           </div>
           <div>
@@ -109,8 +110,8 @@ function GoldCalculator({ current }: { current: GoldPrice }) {
 
         {/* ผลลัพธ์ */}
         {weightNum > 0 && (
-          <div className="rounded-xl border-2 border-yellow-200 bg-yellow-50 p-4 space-y-2">
-            <p className="text-xs font-semibold text-yellow-800 uppercase tracking-wide">ผลการคำนวณ</p>
+          <div className="rounded-xl border-2 border-gold-200 bg-gold-50 p-4 space-y-2">
+            <p className="text-xs font-semibold text-gold-800 uppercase tracking-wide">ผลการคำนวณ</p>
             <div className="space-y-1 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">น้ำหนัก</span>
@@ -131,9 +132,9 @@ function GoldCalculator({ current }: { current: GoldPrice }) {
                 </div>
               )}
             </div>
-            <div className="border-t border-yellow-200 pt-2 flex justify-between items-center">
-              <span className="font-semibold text-yellow-800">{mode === 'sell' ? 'ลูกค้าจ่าย' : 'ร้านจ่ายคืน'}</span>
-              <span className="text-2xl font-bold text-yellow-700">฿{fmtInt(totalAmount)}</span>
+            <div className="border-t border-gold-200 pt-2 flex justify-between items-center">
+              <span className="font-semibold text-gold-800">{mode === 'sell' ? 'ลูกค้าจ่าย' : 'ร้านจ่ายคืน'}</span>
+              <span className="text-2xl font-bold text-gold-700">฿{fmtInt(totalAmount)}</span>
             </div>
           </div>
         )}
@@ -193,7 +194,7 @@ export default function GoldPricePage() {
       await goldPriceApi.set(values)
       toast.success('อัปเดตราคาทองสำเร็จ')
       mutateCurrent(); mutateHistory(); setOpen(false)
-    } catch (e: any) { toast.error(e.response?.data?.message || 'เกิดข้อผิดพลาด') }
+    } catch (e) { apiToastError(e) }
     finally { setSaving(false) }
   }
 
@@ -223,7 +224,7 @@ export default function GoldPricePage() {
               <Card key={label}>
                 <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{label}</CardTitle></CardHeader>
                 <CardContent>
-                  <p className="text-2xl font-bold text-yellow-700">฿{fmtInt(value)}</p>
+                  <p className="text-2xl font-bold text-gold-700">฿{fmtInt(value)}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">฿{fmtInt(Math.round(value / BAHT_GRAM))}/กรัม</p>
                 </CardContent>
               </Card>

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import useSWR from 'swr'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
-import { TrendingUp, ShoppingCart, Landmark, PiggyBank, AlertTriangle, CheckCircle, RefreshCw, ArrowDownLeft, ArrowUpRight } from 'lucide-react'
+import { TrendingUp, ShoppingCart, Landmark, PiggyBank, AlertTriangle, CheckCircle, RefreshCw, ArrowDownLeft, ArrowUpRight, Gem } from 'lucide-react'
 import { reportApi, goldPriceApi } from '@/lib/gold-api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { DashboardData, GoldPrice } from '@/types/gold'
@@ -80,10 +80,10 @@ export default function DashboardPage() {
 
       {/* Gold Price Banner */}
       {goldPrice && (
-        <div className="rounded-xl p-5 text-white" style={{ background: 'linear-gradient(135deg, #b8860b 0%, #daa520 50%, #b8860b 100%)' }}>
+        <div className="rounded-xl p-5 text-white bg-gradient-to-br from-gold-700 via-gold-500 to-gold-700">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <span className="text-lg">💎</span>
+              <Gem className="h-5 w-5" />
               <span className="font-bold text-lg">ราคาทองวันนี้ (ต่อบาท = 15.244 ก.)</span>
             </div>
             <div className="text-right">
@@ -102,7 +102,7 @@ export default function DashboardPage() {
 
       {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard title="ยอดขายวันนี้" value={`฿${fmt(data?.total_sales_today ?? 0)}`} icon={TrendingUp} color="bg-yellow-500" />
+        <KpiCard title="ยอดขายวันนี้" value={`฿${fmt(data?.total_sales_today ?? 0)}`} icon={TrendingUp} color="bg-gold-500" />
         <KpiCard title="รายการวันนี้" value={String(data?.transaction_count ?? 0)} icon={ShoppingCart} color="bg-blue-500" />
         <KpiCard title="จำนำที่ยังเปิดอยู่" value={String(activePawns)} icon={Landmark} color="bg-orange-500" />
         <KpiCard title="ออมทองรวม" value={`฿${fmt(data?.gold_saving_total ?? 0)}`} icon={PiggyBank} color="bg-green-500" />
@@ -117,19 +117,19 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {dueSoon > 0 && (
-              <div className="flex items-start gap-3 rounded-lg border border-yellow-200 bg-yellow-50 p-3">
-                <div className="rounded-lg bg-yellow-500 p-2 shrink-0">
+              <div className="flex items-start gap-3 rounded-lg border border-gold-200 bg-gold-50 p-3">
+                <div className="rounded-lg bg-gold-500 p-2 shrink-0">
                   <AlertTriangle className="h-4 w-4 text-white" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-yellow-800">จำนำใกล้ครบกำหนด</p>
-                  <p className="text-xs text-yellow-700">{dueSoon} รายการภายใน 7 วัน</p>
+                  <p className="text-sm font-semibold text-gold-800">จำนำใกล้ครบกำหนด</p>
+                  <p className="text-xs text-gold-700">{dueSoon} รายการภายใน 7 วัน</p>
                 </div>
               </div>
             )}
             {activePawns > 0 && (
-              <div className="flex items-start gap-3 rounded-lg border border-yellow-200 bg-yellow-50/50 p-3">
-                <div className="rounded-lg bg-yellow-600 p-2 shrink-0">
+              <div className="flex items-start gap-3 rounded-lg border border-gold-200 bg-gold-50/50 p-3">
+                <div className="rounded-lg bg-gold-600 p-2 shrink-0">
                   <Landmark className="h-4 w-4 text-white" />
                 </div>
                 <div>
@@ -160,9 +160,9 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-lg bg-yellow-50 border border-yellow-100 p-4">
+              <div className="rounded-lg bg-gold-50 border border-gold-100 p-4">
                 <p className="text-xs text-muted-foreground mb-1">ยอดขายวันนี้</p>
-                <p className="text-2xl font-bold text-yellow-700">฿{fmt(data?.total_sales_today ?? 0)}</p>
+                <p className="text-2xl font-bold text-gold-700">฿{fmt(data?.total_sales_today ?? 0)}</p>
                 <p className="text-xs text-muted-foreground mt-1">{data?.transaction_count ?? 0} รายการ</p>
               </div>
               <div className="rounded-lg bg-blue-50 border border-blue-100 p-4">

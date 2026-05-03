@@ -7,6 +7,7 @@ import { Eye, MoreHorizontal } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { inventoryApi, branchApi } from '@/lib/gold-api'
+import { apiToastError } from '@/lib/api-toast'
 import type { InventoryTransfer, Branch } from '@/types/gold'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -15,7 +16,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 const statusColor: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-700',
+  pending: 'bg-gold-100 text-gold-700',
   approved: 'bg-blue-100 text-blue-700',
   in_transit: 'bg-orange-100 text-orange-700',
   received: 'bg-green-100 text-green-700',
@@ -38,7 +39,7 @@ export default function InventoryPage() {
       else await inventoryApi.cancel(id)
       toast.success('บันทึกสำเร็จ')
       mutate()
-    } catch (e: any) { toast.error(e.response?.data?.message || 'เกิดข้อผิดพลาด') }
+    } catch (e) { apiToastError(e) }
   }
 
   return (

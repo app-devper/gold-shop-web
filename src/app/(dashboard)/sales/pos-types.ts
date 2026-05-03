@@ -38,7 +38,7 @@ export function makeCartItem(product: Product, goldSellPricePerBaht = 0): CartIt
 export const saleTypeLabels: Record<string, string> = { sell: 'ขาย', exchange: 'เปลี่ยน', buy_old: 'รับซื้อ' }
 export const statusColor: Record<string, string> = {
   completed: 'bg-green-100 text-green-700',
-  pending: 'bg-yellow-100 text-yellow-700',
+  pending: 'bg-gold-100 text-gold-700',
   cancelled: 'bg-red-100 text-red-700',
 }
 export const statusLabel: Record<string, string> = { completed: 'สำเร็จ', pending: 'รอดำเนินการ', cancelled: 'ยกเลิก' }

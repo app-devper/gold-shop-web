@@ -9,6 +9,7 @@ import { useForm } from 'react-hook-form'
 import * as z from 'zod'
 
 import { rewardApi, customerApi } from '@/lib/gold-api'
+import { apiToastError } from '@/lib/api-toast'
 import { useAuthStore } from '@/store/auth'
 import type { Reward, Customer } from '@/types/gold'
 import { Button } from '@/components/ui/button'
@@ -54,7 +55,7 @@ export default function RewardsPage() {
       await rewardApi.create(values)
       toast.success('เพิ่มรางวัลสำเร็จ')
       mutate(); setOpen(false)
-    } catch (e: any) { toast.error(e.response?.data?.message || 'เกิดข้อผิดพลาด') }
+    } catch (e) { apiToastError(e) }
     finally { setSaving(false) }
   }
 
@@ -70,7 +71,7 @@ export default function RewardsPage() {
       })
       toast.success('แลกรางวัลสำเร็จ')
       setRedeemOpen(false); setRedeemCustomerId(''); setRedeemRewardId('')
-    } catch (e: any) { toast.error(e.response?.data?.message || 'เกิดข้อผิดพลาด') }
+    } catch (e) { apiToastError(e) }
     finally { setSaving(false) }
   }
 
