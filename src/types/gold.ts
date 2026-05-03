@@ -60,16 +60,42 @@ export interface Customer {
   updated_at: string
 }
 
-// ── Product ──────────────────────────────────────────────────────────────────
+// ── Product (v2 — ornament + bar; every piece is a ProductItem) ─────────────
 export type ProductStatus = 'available' | 'sold' | 'reserved' | 'pawned'
-export type StockType = 'piece' | 'weight'
+export type ProductKind = 'ornament' | 'bar'
 
-export interface ProductCategory {
+// SRS 3.3 — ornament-only categories
+export type ProductCategory =
+  | 'necklace' // สร้อยคอ
+  | 'bracelet' // สร้อยข้อมือ
+  | 'ring'     // แหวน
+  | 'bangle'   // กำไล
+  | 'earring'  // ต่างหู
+  | 'pendant'  // จี้
+  | 'amulet'   // เลี่ยมพระ
+
+export const PRODUCT_CATEGORY_LABELS: Record<ProductCategory, string> = {
+  necklace: 'สร้อยคอ',
+  bracelet: 'สร้อยข้อมือ',
+  ring: 'แหวน',
+  bangle: 'กำไล',
+  earring: 'ต่างหู',
+  pendant: 'จี้',
+  amulet: 'เลี่ยมพระ',
+}
+
+export interface ProductItem {
   id: string
-  code: string
-  name: string
-  description: string
-  is_active: boolean
+  product_id: string
+  branch_id: string
+  barcode: string
+  serial_number?: string
+  weight_grams: number
+  labor_cost: number
+  cost: number
+  status: ProductStatus
+  received_date: string
+  note?: string
   created_at: string
   updated_at: string
 }
@@ -77,21 +103,23 @@ export interface ProductCategory {
 export interface Product {
   id: string
   branch_id: string
-  category_id: string
   sku: string
-  barcode?: string
-  name: string
-  description: string
-  stock_type: StockType
+  code?: string
+  kind: ProductKind
   gold_type: string
-  weight: number
-  weight_unit: string
-  labor_cost: number
-  price: number
-  cost: number
-  status: ProductStatus
+  name: string
+  description?: string
+  note?: string
+  // ornament-only:
+  category?: ProductCategory
+  design?: string
+  default_labor_cost: number
+  // bar-only:
+  bar_size_baht?: number
   images: string[]
-  reorder_point: number
+  is_active: boolean
+  // Populated by API: only items with status=available unless filtered otherwise.
+  items?: ProductItem[]
   created_at: string
   updated_at: string
 }
@@ -102,13 +130,34 @@ export type SaleStatus = 'completed' | 'pending' | 'cancelled'
 export type DiscountType = 'amount' | 'percent'
 export type PaymentMethod = 'cash' | 'credit_card' | 'transfer' | 'voucher'
 
+// SRS 3.7 — ratings the shop assigns to traded-in gold; affects deduction.
+export type OldGoldCondition = 'good' | 'fair' | 'damaged'
+
+export const OLD_GOLD_CONDITION_LABELS: Record<OldGoldCondition, string> = {
+  good: 'สภาพดี',
+  fair: 'พอใช้',
+  damaged: 'ชำรุด',
+}
+
+// SRS 3.7 — where customer-traded-in gold goes after the sale.
+export type OldItemDestination = 'melt' | 'resell' | 'scrap'
+
+export const OLD_ITEM_DESTINATION_LABELS: Record<OldItemDestination, string> = {
+  melt: 'ส่งหลอม',
+  resell: 'เข้าสต็อกขายต่อ',
+  scrap: 'เก็บเป็นเศษ',
+}
+
 export interface SaleItem {
   product_id: string
   product_item_id?: string
   product_name: string
+  barcode?: string
+  serial_number?: string
   gold_type: string
   weight: number
   price_level: string
+  price_per_gram: number
   unit_price: number
   labor_cost: number
   discount: number
@@ -120,9 +169,25 @@ export interface SaleItem {
 export interface OldGoldItem {
   description: string
   gold_type: string
+  kind: ProductKind
+  condition?: OldGoldCondition
   weight: number
   price_per_unit: number
+  gross_total: number
+  deduction_percent: number
+  deduction_amount: number
   total: number
+}
+
+export interface GoldPriceSnapshot {
+  gold_price_id?: string
+  date: string
+  gold_bar_buy: number
+  gold_bar_sell: number
+  gold_ornament_buy: number
+  gold_ornament_sell: number
+  source: string
+  captured_at: string
 }
 
 export interface Payment {
@@ -138,8 +203,10 @@ export interface Sale {
   customer_id?: string
   user_id: string
   sale_type: SaleType
+  gold_price?: GoldPriceSnapshot
   items: SaleItem[]
   old_gold_items: OldGoldItem[]
+  old_item_destination?: OldItemDestination
   subtotal: number
   discount: number
   discount_type: DiscountType
@@ -192,19 +259,22 @@ export interface Pawn {
   updated_at: string
 }
 
-// ── Gold Saving ───────────────────────────────────────────────────────────────
-export type GoldSavingType = 'money' | 'weight'
+// ── Gold Saving (v2 — unified single-balance) ────────────────────────────────
 export type GoldSavingStatus = 'active' | 'closed'
-export type TransactionType = 'deposit' | 'withdrawal'
+export type TxType = 'deposit' | 'withdraw' | 'adjust'
+export type TxMode = 'cash' | 'physical'
 
 export interface GoldSavingTransaction {
   date: string
-  type: TransactionType
-  amount: number
-  gold_price: number
-  gold_weight: number
-  balance_after: number
+  type: TxType
+  mode: TxMode
+  input_amount: number          // ฿ if mode=cash, grams if mode=physical
+  gold_price_per_gram: number   // snapshot
+  gold_weight_delta: number     // signed grams
+  cash_equivalent: number       // ฿ value of the tx (always positive)
+  balance_after: number         // grams
   processed_by: string
+  note?: string
 }
 
 export interface GoldSaving {
@@ -212,17 +282,40 @@ export interface GoldSaving {
   branch_id: string
   account_number: string
   customer_id: string
-  saving_type: GoldSavingType
-  min_deposit: number
-  min_withdrawal: number
-  gold_balance: number
-  cash_balance: number
-  transactions: GoldSavingTransaction[]
+
+  // Primary balance — grams of gold.
+  gold_weight: number
+
+  // Lifetime aggregates (for cost basis on the statement).
+  total_deposit_value: number
+  total_deposit_weight: number
+  total_withdraw_value: number
+  total_withdraw_weight: number
+
+  // Per-mode minimums (0 = disabled).
+  min_deposit_cash: number
+  min_deposit_physical: number
+  min_withdraw_cash: number
+  min_withdraw_physical: number
+
   status: GoldSavingStatus
   opened_date: string
   closed_date?: string
+  transactions: GoldSavingTransaction[]
   created_at: string
   updated_at: string
+}
+
+export interface GoldSavingStatement {
+  account: GoldSaving
+  gold_weight: number
+  current_buy_price: number       // ฿/baht (display)
+  current_buy_per_gram: number    // ฿/g
+  current_sell_per_gram: number   // ฿/g
+  current_value: number           // ฿
+  cost_basis_value: number        // ฿
+  unrealized_pnl: number          // ฿
+  unrealized_pnl_percent: number  // %
 }
 
 // ── Inventory Transfer ────────────────────────────────────────────────────────

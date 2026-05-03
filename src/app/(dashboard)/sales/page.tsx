@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import useSWR from 'swr'
 import { format } from 'date-fns'
 import { Search, ShoppingCart, Trash2, Edit2, Tag, UserPlus, X, Receipt, XCircle, RefreshCw, Gem, Sparkles } from 'lucide-react'
@@ -9,16 +9,18 @@ import { toast } from 'sonner'
 import { saleApi, customerApi, productApi, goldPriceApi } from '@/lib/gold-api'
 import { useDebounced } from '@/lib/use-debounced'
 import { apiToastError } from '@/lib/api-toast'
-import type { Sale, Customer, Product, OldGoldItem, Payment, GoldPrice } from '@/types/gold'
+import type { Sale, Customer, Product, ProductItem, OldGoldItem, OldGoldCondition, OldItemDestination, Payment, GoldPrice, ProductKind } from '@/types/gold'
+import { OLD_ITEM_DESTINATION_LABELS } from '@/types/gold'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { makeCartItem, calcGoldPrice, saleTypeLabels, statusColor, statusLabel, typeLabel, fmt, fmtDec } from './pos-types'
+import { makeCartItem, updateCartItem, calcGoldPrice, calcBuybackPrice, bahtPerGramFor, BAHT_GRAM_BAR, BAHT_GRAM_ORNAMENT, saleTypeLabels, statusColor, statusLabel, typeLabel, fmt, fmtDec } from './pos-types'
 import type { CartItem } from './pos-types'
 import {
   CustomerSearchDialog, EditPriceDialog, ItemDiscountDialog,
   GlobalDiscountDialog, PointsDialog, OldGoldDialog,
   PaymentDialog, ReceiptDialog, SaleDetailDialog,
+  ProductItemPickerDialog,
 } from './pos-dialogs'
 
 export default function SalesPage() {
@@ -27,6 +29,7 @@ export default function SalesPage() {
   const [saleType, setSaleType] = useState<'sell' | 'exchange' | 'buy_old'>('sell')
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const [oldGoldItems, setOldGoldItems] = useState<OldGoldItem[]>([])
+  const [oldItemDestination, setOldItemDestination] = useState<OldItemDestination>('melt')
   const [globalDiscount, setGlobalDiscount] = useState(0)
   const [globalDiscountType, setGlobalDiscountType] = useState<'amount' | 'percent'>('amount')
   const [pointsUsed, setPointsUsed] = useState(0)
@@ -49,8 +52,11 @@ export default function SalesPage() {
   const [oldGoldOpen, setOldGoldOpen] = useState(false)
   const [ogDesc, setOgDesc] = useState('')
   const [ogGoldType, setOgGoldType] = useState('96.5%')
+  const [ogKind, setOgKind] = useState<ProductKind>('ornament')
+  const [ogCondition, setOgCondition] = useState<OldGoldCondition>('good')
   const [ogWeight, setOgWeight] = useState('')
   const [ogPrice, setOgPrice] = useState('')
+  const [ogDeductionPercent, setOgDeductionPercent] = useState('3')
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [payMethod, setPayMethod] = useState<'cash' | 'transfer' | 'credit_card'>('cash')
   const [payAmount, setPayAmount] = useState('')
@@ -70,11 +76,18 @@ export default function SalesPage() {
   const { data: customers } = useSWR<Customer[]>('customers', () => customerApi.list())
   const { data: salesHistory, isLoading: histLoading, mutate: mutateSales } = useSWR<Sale[]>('sales', () => saleApi.list())
 
-  const displayProducts = searchQ ? (searchProducts ?? []) : (allProducts ?? [])
-  const BAHT_GRAM = 15.244
-  const goldBarBuyPerGram = currentGoldPrice ? currentGoldPrice.gold_bar_buy / BAHT_GRAM : 0
-  const goldOrnamentBuyPerGram = currentGoldPrice ? currentGoldPrice.gold_ornament_buy / BAHT_GRAM : 0
-  const goldSellPricePerBaht = currentGoldPrice?.gold_ornament_sell ?? 0
+  const displayProducts = useMemo(
+    () => searchQ ? (searchProducts ?? []) : (allProducts ?? []),
+    [allProducts, searchProducts, searchQ],
+  )
+  // Bar uses 15.244 g/baht; ornament uses 15.16 g/baht.
+  const goldBarBuyPerGram = currentGoldPrice ? currentGoldPrice.gold_bar_buy / BAHT_GRAM_BAR : 0
+  const goldOrnamentBuyPerGram = currentGoldPrice ? currentGoldPrice.gold_ornament_buy / BAHT_GRAM_ORNAMENT : 0
+  const goldBuyPricePerGram = ogKind === 'bar' ? goldBarBuyPerGram : goldOrnamentBuyPerGram
+  const sellPricePerBahtFor = useCallback((product: Product) =>
+    product.kind === 'bar'
+      ? currentGoldPrice?.gold_bar_sell ?? 0
+      : currentGoldPrice?.gold_ornament_sell ?? 0, [currentGoldPrice])
 
   // ── Calculations ──
   const subtotal = cart.reduce((s, i) => s + i.total, 0)
@@ -83,11 +96,35 @@ export default function SalesPage() {
   const netTotal = Math.max(0, subtotal - globalDiscountAmount - oldGoldValue - pointsUsed)
   const customerPoints = selectedCustomer?.membership?.points ?? 0
 
+  // ── Item picker (piece-based products) ──
+  const [pickerProduct, setPickerProduct] = useState<Product | null>(null)
+
   // ── Helpers ──
-  const addToCart = (p: Product) => setCart(prev => [...prev, makeCartItem(p, goldSellPricePerBaht)])
+  const pushCartLine = useCallback((product: Product, item?: ProductItem) => {
+    setCart(prev => [...prev, makeCartItem(product, sellPricePerBahtFor(product), item)])
+  }, [sellPricePerBahtFor])
+
+  /**
+   * Add a product to the cart. Every product is piece-based: open the item
+   * picker so the cashier can choose the exact physical piece. Auto-add when
+   * exactly one item is available.
+   */
+  const addToCart = useCallback((p: Product) => {
+    const items = p.items ?? []
+    if (items.length === 0) {
+      toast.error(`${p.name}: ไม่มีสินค้าคงเหลือ`)
+      return
+    }
+    if (items.length === 1) {
+      pushCartLine(p, items[0])
+      return
+    }
+    setPickerProduct(p)
+  }, [pushCartLine])
   const removeFromCart = (idx: number) => setCart(prev => prev.filter((_, i) => i !== idx))
   const clearCart = () => {
     setCart([]); setSelectedCustomer(null); setOldGoldItems([])
+    setOldItemDestination('melt')
     setGlobalDiscount(0); setPointsUsed(0); setSaleType('sell')
   }
 
@@ -96,12 +133,18 @@ export default function SalesPage() {
     const payload = {
       customer_id: selectedCustomer?.id, sale_type: saleType,
       items: cart.map(i => ({
-        product_id: i.product.id, product_name: i.product.name, gold_type: i.product.gold_type,
-        weight: i.product.weight, price_level: 'custom', unit_price: i.unitPrice,
-        labor_cost: i.product.labor_cost, discount: i.discount, discount_type: i.discountType,
-        cost: i.product.cost, total: i.total,
+        product_id: i.product.id,
+        // For piece-based products the API requires the specific item id.
+        product_item_id: i.productItem?.id,
+        price: i.goldValue,
+        product_name: i.product.name, gold_type: i.product.gold_type,
+        weight: i.weight, price_level: 'custom', price_per_gram: i.pricePerGram, unit_price: i.unitPrice,
+        labor_cost: i.laborCost, discount: i.discount, discount_type: i.discountType,
+        cost: i.productItem?.cost ?? 0, total: i.total,
       })),
-      old_gold_items: oldGoldItems, subtotal, discount: globalDiscountAmount, discount_type: globalDiscountType,
+      old_gold_items: oldGoldItems,
+      old_item_destination: saleType === 'sell' ? undefined : oldItemDestination,
+      subtotal, discount: globalDiscountAmount, discount_type: globalDiscountType,
       old_gold_value: oldGoldValue, net_total: netTotal, payments, points_used: pointsUsed,
     }
     try {
@@ -163,7 +206,9 @@ export default function SalesPage() {
           void (async () => {
             try {
               const list = await productApi.list({ search: buf })
-              const exact = list.find(p => p.barcode === buf) ?? list[0]
+              // The catalog has no master barcode in v2; instead match against an
+              // available item's barcode on any returned product.
+              const exact = list.find(p => (p.items ?? []).some(it => it.barcode === buf)) ?? list[0]
               if (exact) addToCart(exact)
               else toast.error(`ไม่พบสินค้า: ${buf}`)
             } catch (err) { apiToastError(err) }
@@ -184,10 +229,10 @@ export default function SalesPage() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [cart.length, saleType, netTotal, saving, displayProducts])
+  }, [cart.length, saleType, netTotal, saving, displayProducts, addToCart])
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col">
+    <div className="h-full flex flex-col min-h-0">
       <Tabs defaultValue="pos" className="flex flex-col flex-1 min-h-0">
         <div className="flex items-center justify-between pb-3 shrink-0">
           <h1 className="text-2xl font-bold">ขายสินค้า (POS)</h1>
@@ -222,25 +267,42 @@ export default function SalesPage() {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {displayProducts.map(p => (
-                    <button key={p.id} onClick={() => addToCart(p)}
-                      className="text-left rounded-xl border bg-card p-3 hover:border-gold-400 hover:shadow-md transition-all">
-                      <div className="rounded-lg bg-gold-50 flex items-center justify-center h-14 mb-2 relative">
-                        <Gem className="h-7 w-7 text-gold-600" />
-                        {p.gold_type && <span className="absolute top-1 left-1 text-xs bg-gold-500 text-white px-1.5 py-0.5 rounded">{p.gold_type}</span>}
-                      </div>
-                      <p className="font-semibold text-sm truncate">{p.name}</p>
-                      <p className="text-xs text-muted-foreground">{fmtDec(p.weight)}g · {fmtDec(p.weight / BAHT_GRAM)} บาททอง</p>
-                      {goldSellPricePerBaht > 0 ? (
-                        <div className="mt-1">
-                          <p className="font-bold text-gold-700">฿{fmt(calcGoldPrice(p, goldSellPricePerBaht))}</p>
-                          {p.labor_cost > 0 && <p className="text-xs text-muted-foreground">ค่ากำเหน็จ ฿{fmt(p.labor_cost)}</p>}
+                  {displayProducts.map(p => {
+                    const items = p.items ?? []
+                    const stockCount = items.length
+                    const cardWeight = items[0]?.weight_grams ?? 0
+                    const cardLabor = items[0]?.labor_cost ?? 0
+                    const sellPricePerBaht = sellPricePerBahtFor(p)
+                    const previewPrice = sellPricePerBaht > 0
+                      ? calcGoldPrice(cardWeight, cardLabor, sellPricePerBaht, p.kind)
+                      : 0
+                    const kindBadge = p.kind === 'bar' ? '📏 แท่ง' : '🪙 รูปพรรณ'
+                    return (
+                      <button key={p.id} onClick={() => addToCart(p)}
+                        disabled={stockCount === 0}
+                        className="text-left rounded-xl border bg-card p-3 hover:border-gold-400 hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                        <div className="rounded-lg bg-gold-50 flex items-center justify-center h-14 mb-2 relative">
+                          <Gem className="h-7 w-7 text-gold-600" />
+                          <span className="absolute top-1 left-1 text-[10px] bg-gold-500 text-white px-1.5 py-0.5 rounded">{p.gold_type}</span>
+                          <span className="absolute top-1 right-1 text-[10px] bg-card border border-border text-foreground px-1.5 py-0.5 rounded">
+                            {stockCount > 0 ? `เหลือ ${stockCount}` : 'หมด'}
+                          </span>
                         </div>
-                      ) : (
-                        <p className="font-bold text-gold-700 mt-1">฿{fmt(p.price)}</p>
-                      )}
-                    </button>
-                  ))}
+                        <p className="font-semibold text-sm truncate">{p.name}</p>
+                        <p className="text-[10px] text-muted-foreground">{kindBadge}{p.kind === 'bar' && p.bar_size_baht ? ` · ${p.bar_size_baht} บาท` : ''}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {fmtDec(cardWeight)}g · {fmtDec(cardWeight / bahtPerGramFor(p.kind))} บาททอง
+                          {stockCount > 1 && <span className="text-gold-600"> (ราคาเริ่มต้น)</span>}
+                        </p>
+                        {previewPrice > 0 && (
+                          <div className="mt-1">
+                            <p className="font-bold text-gold-700">฿{fmt(previewPrice)}</p>
+                            {cardLabor > 0 && <p className="text-xs text-muted-foreground">ค่ากำเหน็จ ฿{fmt(cardLabor)}</p>}
+                          </div>
+                        )}
+                      </button>
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -283,7 +345,15 @@ export default function SalesPage() {
                     <p className="font-semibold truncate flex-1">{item.product.name}</p>
                     <button onClick={() => removeFromCart(idx)}><X className="h-4 w-4 text-muted-foreground" /></button>
                   </div>
-                  <p className="text-xs text-muted-foreground">{fmtDec(item.product.weight)}g</p>
+                  <p className="text-xs text-muted-foreground">
+                    {fmtDec(item.weight)}g
+                    {item.productItem?.barcode && <span className="font-mono ml-1">· {item.productItem.barcode}</span>}
+                  </p>
+                  <div className="mt-1 grid grid-cols-2 gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+                    <span>ทอง ฿{fmt(item.goldValue)}</span>
+                    <span>฿{fmt(item.pricePerGram)}/g</span>
+                    {item.laborCost > 0 && <span className="col-span-2">ค่ากำเหน็จ ฿{fmt(item.laborCost)}</span>}
+                  </div>
                   <div className="flex items-center justify-between mt-1.5">
                     <button onClick={() => { setEditPriceIdx(idx); setEditPriceVal(String(item.unitPrice)) }}
                       className="flex items-center gap-1 text-gold-700 font-bold hover:underline">
@@ -308,13 +378,30 @@ export default function SalesPage() {
                     <p className="text-sm font-semibold">ทองเก่า ({oldGoldItems.length})</p>
                     <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setOldGoldOpen(true)}>+ เพิ่ม</Button>
                   </div>
+                  {oldGoldItems.length > 0 && (
+                    <div className="flex items-center gap-2 mb-2 text-xs">
+                      <span className="text-muted-foreground">ปลายทาง:</span>
+                      {(Object.keys(OLD_ITEM_DESTINATION_LABELS) as OldItemDestination[]).map(d => (
+                        <button key={d} onClick={() => setOldItemDestination(d)}
+                          className={`px-2 py-0.5 rounded border text-xs ${oldItemDestination === d ? 'bg-orange-500 text-white border-orange-500' : 'border-border text-muted-foreground hover:bg-muted'}`}>
+                          {OLD_ITEM_DESTINATION_LABELS[d]}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   {oldGoldItems.map((og, i) => (
-                    <div key={i} className="flex items-center justify-between text-xs py-1">
-                      <span className="truncate flex-1">{og.description || `${og.gold_type} ${og.weight}g`}</span>
-                      <div className="flex items-center gap-1">
-                        <span className="font-medium">฿{fmt(og.total)}</span>
-                        <button onClick={() => setOldGoldItems(prev => prev.filter((_, j) => j !== i))}><X className="h-3 w-3 text-muted-foreground" /></button>
+                    <div key={i} className="rounded-md bg-orange-50/60 border border-orange-100 px-2 py-1.5 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate flex-1">{og.description || `${og.gold_type} ${og.weight}g`}</span>
+                        <div className="flex items-center gap-1">
+                          <span className="font-medium">฿{fmt(og.total)}</span>
+                          <button onClick={() => setOldGoldItems(prev => prev.filter((_, j) => j !== i))}><X className="h-3 w-3 text-muted-foreground" /></button>
+                        </div>
                       </div>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">
+                        {og.kind === 'bar' ? 'ทองแท่ง' : 'รูปพรรณ'} · {fmtDec(og.weight)}g · ฿{fmt(og.price_per_unit)}/g
+                        {og.deduction_amount > 0 && <span> · หัก {og.deduction_percent}% ฿{fmt(og.deduction_amount)}</span>}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -405,7 +492,7 @@ export default function SalesPage() {
         onClose={() => setEditPriceIdx(null)}
         onSave={() => {
           if (editPriceIdx !== null) {
-            setCart(prev => prev.map((item, i) => i === editPriceIdx ? { ...item, unitPrice: parseFloat(editPriceVal) || item.unitPrice } : item))
+            setCart(prev => prev.map((item, i) => i === editPriceIdx ? updateCartItem(item, { unitPrice: parseFloat(editPriceVal) || item.unitPrice }) : item))
             setEditPriceIdx(null)
           }
         }}
@@ -416,7 +503,7 @@ export default function SalesPage() {
         onClose={() => setItemDiscountIdx(null)}
         onSave={() => {
           if (itemDiscountIdx !== null) {
-            setCart(prev => prev.map((item, i) => i === itemDiscountIdx ? { ...item, discount: parseFloat(itemDiscountVal) || 0, discountType: itemDiscountType } : item))
+            setCart(prev => prev.map((item, i) => i === itemDiscountIdx ? updateCartItem(item, { discount: parseFloat(itemDiscountVal) || 0, discountType: itemDiscountType }) : item))
             setItemDiscountIdx(null)
           }
         }}
@@ -433,15 +520,25 @@ export default function SalesPage() {
         onSave={() => { setPointsUsed(Math.min(parseFloat(pointsInput) || 0, customerPoints)); setPointsOpen(false) }}
       />
       <OldGoldDialog
-        open={oldGoldOpen} desc={ogDesc} goldType={ogGoldType} weight={ogWeight} price={ogPrice}
-        defaultPricePerGram={goldBarBuyPerGram}
-        onDescChange={setOgDesc} onGoldTypeChange={setOgGoldType} onWeightChange={setOgWeight} onPriceChange={setOgPrice}
+        open={oldGoldOpen} desc={ogDesc} goldType={ogGoldType} kind={ogKind} condition={ogCondition} weight={ogWeight} price={ogPrice} deductionPercent={ogDeductionPercent}
+        defaultPricePerGram={goldBuyPricePerGram}
+        onDescChange={setOgDesc} onGoldTypeChange={setOgGoldType} onKindChange={setOgKind} onConditionChange={setOgCondition}
+        onWeightChange={setOgWeight} onPriceChange={setOgPrice} onDeductionPercentChange={setOgDeductionPercent}
         onClose={() => setOldGoldOpen(false)}
         onAdd={() => {
-          const w = parseFloat(ogWeight); const pr = parseFloat(ogPrice)
+          const w = parseFloat(ogWeight)
+          const pr = parseFloat(ogPrice) || goldBuyPricePerGram
           if (!w || !pr) return
-          setOldGoldItems(prev => [...prev, { description: ogDesc, gold_type: ogGoldType, weight: w, price_per_unit: pr, total: w * pr }])
-          setOgDesc(''); setOgWeight(''); setOgPrice(''); setOldGoldOpen(false)
+          const buyback = calcBuybackPrice(w, pr, parseFloat(ogDeductionPercent) || 0)
+          setOldGoldItems(prev => [...prev, {
+            description: ogDesc,
+            gold_type: ogGoldType,
+            kind: ogKind,
+            condition: ogCondition,
+            weight: w,
+            ...buyback,
+          }])
+          setOgDesc(''); setOgWeight(''); setOgPrice(''); setOgDeductionPercent('3'); setOgCondition('good'); setOldGoldOpen(false)
         }}
       />
       <PaymentDialog
@@ -451,6 +548,16 @@ export default function SalesPage() {
       />
       <ReceiptDialog open={receiptOpen} sale={lastSale} onClose={() => setReceiptOpen(false)} />
       <SaleDetailDialog open={!!detailSale} sale={detailSale} onClose={() => setDetailSale(null)} />
+      <ProductItemPickerDialog
+        open={!!pickerProduct}
+        product={pickerProduct}
+        goldSellPricePerBaht={pickerProduct ? sellPricePerBahtFor(pickerProduct) : 0}
+        onClose={() => setPickerProduct(null)}
+        onPick={item => {
+          if (pickerProduct) pushCartLine(pickerProduct, item)
+          setPickerProduct(null)
+        }}
+      />
     </div>
   )
 }

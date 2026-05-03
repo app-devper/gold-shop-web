@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "deploy": "next build && firebase deploy --only hosting:devper-gold"
+    "deploy": "next build && firebase deploy --only hosting:devper-gold",
+    "deploy:hosting": "firebase deploy --only hosting:devper-gold"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

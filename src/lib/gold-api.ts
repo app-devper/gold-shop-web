@@ -1,6 +1,6 @@
 import { goldApi } from './api'
 import type {
-  Branch, Employee, GoldPrice, Customer, ProductCategory, Product,
+  Branch, Employee, GoldPrice, Customer, Product, ProductCategory, ProductItem, ProductKind,
   Sale, Pawn, GoldSaving, InventoryTransfer, Reward, Expense, ExpenseCategory,
   DashboardData, ProfitLossReport, TopProduct, EmployeePerformance, SalesTrend,
 } from '@/types/gold'
@@ -44,20 +44,80 @@ export const customerApi = {
   delete: (id: string) => goldApi.delete(`/api/v1/customers/${id}`),
 }
 
-// ── Product Categories ────────────────────────────────────────────────────────
-export const categoryApi = {
-  list: () => goldApi.get<ProductCategory[]>('/api/v1/product-categories').then(r => r.data),
-  create: (data: Partial<ProductCategory>) => goldApi.post<ProductCategory>('/api/v1/product-categories', data).then(r => r.data),
+// ── Products & Product Items (v2) ────────────────────────────────────────────
+type CreateProductPayload = {
+  sku: string
+  code?: string
+  kind: ProductKind
+  gold_type: string
+  name: string
+  description?: string
+  note?: string
+  category?: ProductCategory       // ornament-only
+  design?: string                  // ornament
+  bar_size_baht?: number           // bar
+  default_labor_cost?: number      // ornament
+  images?: string[]
 }
 
-// ── Products ──────────────────────────────────────────────────────────────────
+type UpdateProductPayload = {
+  name?: string
+  description?: string
+  note?: string
+  category?: ProductCategory
+  design?: string
+  default_labor_cost?: number
+  bar_size_baht?: number
+  images?: string[]
+  is_active?: boolean
+}
+
+type CreateItemPayload = {
+  barcode: string
+  serial_number?: string
+  weight_grams?: number      // 0/omit → server falls back to bar default
+  labor_cost?: number
+  cost?: number
+  note?: string
+}
+
+type BulkCreateItemsPayload = {
+  count: number
+  weight_grams?: number
+  labor_cost?: number
+  cost?: number
+  barcode_seed?: string
+}
+
+type UpdateItemPayload = {
+  weight_grams?: number
+  labor_cost?: number
+  cost?: number
+  serial_number?: string
+  note?: string
+}
+
 export const productApi = {
-  list: (params?: { limit?: number; offset?: number; search?: string }) =>
+  list: (params?: { kind?: ProductKind; search?: string; limit?: number; offset?: number }) =>
     goldApi.get<Product[]>('/api/v1/products', { params }).then(r => r.data),
   get: (id: string) => goldApi.get<Product>(`/api/v1/products/${id}`).then(r => r.data),
-  create: (data: Partial<Product>) => goldApi.post<Product>('/api/v1/products', data).then(r => r.data),
-  update: (id: string, data: Partial<Product>) => goldApi.put<Product>(`/api/v1/products/${id}`, data).then(r => r.data),
+  create: (data: CreateProductPayload) =>
+    goldApi.post<Product>('/api/v1/products', data).then(r => r.data),
+  update: (id: string, data: UpdateProductPayload) =>
+    goldApi.put<Product>(`/api/v1/products/${id}`, data).then(r => r.data),
   delete: (id: string) => goldApi.delete(`/api/v1/products/${id}`),
+
+  // ── Items (per-piece) ─────────────────────────────────────────────────────
+  listItems: (productID: string, params?: { status?: string }) =>
+    goldApi.get<ProductItem[]>(`/api/v1/products/${productID}/items`, { params }).then(r => r.data),
+  createItem: (productID: string, data: CreateItemPayload) =>
+    goldApi.post<ProductItem>(`/api/v1/products/${productID}/items`, data).then(r => r.data),
+  bulkCreateItems: (productID: string, data: BulkCreateItemsPayload) =>
+    goldApi.post<ProductItem[]>(`/api/v1/products/${productID}/items/bulk`, data).then(r => r.data),
+  updateItem: (productID: string, itemID: string, data: UpdateItemPayload) =>
+    goldApi.put<ProductItem>(`/api/v1/products/${productID}/items/${itemID}`, data).then(r => r.data),
+  deleteItem: (productID: string, itemID: string) =>
+    goldApi.delete(`/api/v1/products/${productID}/items/${itemID}`),
 }
 
 // ── Sales ─────────────────────────────────────────────────────────────────────
@@ -83,15 +143,32 @@ export const pawnApi = {
   forfeit: (id: string) => goldApi.post(`/api/v1/pawns/${id}/forfeit`),
 }
 
-// ── Gold Savings ──────────────────────────────────────────────────────────────
+// ── Gold Savings (v2) ─────────────────────────────────────────────────────────
+type OpenGoldSavingPayload = {
+  customer_id: string
+  min_deposit_cash?: number
+  min_deposit_physical?: number
+  min_withdraw_cash?: number
+  min_withdraw_physical?: number
+}
+type GoldSavingTxPayload = { mode: 'cash' | 'physical'; amount: number }
+type GoldSavingAdjustPayload = { weight_delta: number; note: string }
+
 export const goldSavingApi = {
   list: () => goldApi.get<GoldSaving[]>('/api/v1/gold-savings').then(r => r.data),
   get: (id: string) => goldApi.get<GoldSaving>(`/api/v1/gold-savings/${id}`).then(r => r.data),
-  open: (data: Partial<GoldSaving>) => goldApi.post<GoldSaving>('/api/v1/gold-savings', data).then(r => r.data),
-  deposit: (id: string, data: any) => goldApi.post(`/api/v1/gold-savings/${id}/deposit`, data),
-  withdraw: (id: string, data: any) => goldApi.post(`/api/v1/gold-savings/${id}/withdraw`, data),
-  close: (id: string) => goldApi.post(`/api/v1/gold-savings/${id}/close`),
-  statement: (id: string) => goldApi.get(`/api/v1/gold-savings/${id}/statement`).then(r => r.data),
+  open: (data: OpenGoldSavingPayload) =>
+    goldApi.post<GoldSaving>('/api/v1/gold-savings', data).then(r => r.data),
+  deposit: (id: string, data: GoldSavingTxPayload) =>
+    goldApi.post<GoldSaving>(`/api/v1/gold-savings/${id}/deposit`, data).then(r => r.data),
+  withdraw: (id: string, data: GoldSavingTxPayload) =>
+    goldApi.post<GoldSaving>(`/api/v1/gold-savings/${id}/withdraw`, data).then(r => r.data),
+  adjust: (id: string, data: GoldSavingAdjustPayload) =>
+    goldApi.post<GoldSaving>(`/api/v1/gold-savings/${id}/adjust`, data).then(r => r.data),
+  close: (id: string) =>
+    goldApi.post<GoldSaving>(`/api/v1/gold-savings/${id}/close`).then(r => r.data),
+  statement: (id: string) =>
+    goldApi.get(`/api/v1/gold-savings/${id}/statement`).then(r => r.data),
 }
 
 // ── Inventory Transfers ───────────────────────────────────────────────────────
