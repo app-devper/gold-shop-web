@@ -1,0 +1,26 @@
+steps:
+  - name: node:20
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        npm ci
+        npm install --no-save --cpu=x64 --os=linux --libc=glibc @next/swc-linux-x64-gnu@16.1.6
+  - name: node:20
+    entrypoint: npm
+    args: [run, build]
+    env:
+      - NEXT_PUBLIC_UM_API_URL=https://devper-um-1056670356976.asia-southeast1.run.app/api/um/v1
+      - NEXT_PUBLIC_SYSTEM_CODE=GOLD
+  - name: node:20
+    entrypoint: npx
+    args:
+      - firebase-tools
+      - deploy
+      - --only
+      - hosting:devper-gold
+      - --project
+      - devperpos
+      - --non-interactive
+options:
+  logging: CLOUD_LOGGING_ONLY
