@@ -4,6 +4,7 @@ import { useState } from 'react'
 import useSWR from 'swr'
 import { format } from 'date-fns'
 import { Plus, Eye, MoreHorizontal, Landmark, AlertTriangle, Banknote } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
 
@@ -31,7 +32,7 @@ const statusLabel: Record<string, string> = {
 }
 const fmt = (n: number) => new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 }).format(n)
 
-function StatCard({ title, value, icon: Icon, color }: { title: string; value: string; icon: any; color: string }) {
+function StatCard({ title, value, icon: Icon, color }: { title: string; value: string; icon: LucideIcon; color: string }) {
   return (
     <Card>
       <CardContent className="pt-5">

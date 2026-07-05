@@ -6,7 +6,7 @@ import { RefreshCw, PenLine } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useForm } from 'react-hook-form'
+import { useForm, type Resolver } from 'react-hook-form'
 import * as z from 'zod'
 
 import { goldPriceApi } from '@/lib/gold-api'
@@ -18,6 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { apiErrorMessage } from '@/lib/utils'
 
 const schema = z.object({
   gold_bar_buy: z.coerce.number().positive(),
@@ -159,7 +160,7 @@ export default function GoldPricePage() {
   const [saving, setSaving] = useState(false)
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(schema) as any,
+    resolver: zodResolver(schema) as unknown as Resolver<FormValues>,
     defaultValues: {
       gold_bar_buy: current?.gold_bar_buy ?? 0,
       gold_bar_sell: current?.gold_bar_sell ?? 0,
@@ -174,7 +175,7 @@ export default function GoldPricePage() {
       await goldPriceApi.sync()
       toast.success('ซิงค์ราคาทองสำเร็จ')
       mutateCurrent(); mutateHistory()
-    } catch (e: any) { toast.error(e.response?.data?.message || 'ซิงค์ไม่สำเร็จ') }
+    } catch (e) { toast.error(apiErrorMessage(e, 'ซิงค์ไม่สำเร็จ')) }
     finally { setSyncing(false) }
   }
 

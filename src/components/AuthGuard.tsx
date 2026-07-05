@@ -1,17 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/auth'
+
+const subscribeNoop = () => () => {}
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const accessToken = useAuthStore((state) => state.accessToken)
-  const [hydrated, setHydrated] = useState(false)
-
-  useEffect(() => {
-    setHydrated(true)
-  }, [])
+  const hydrated = useSyncExternalStore(subscribeNoop, () => true, () => false)
 
   useEffect(() => {
     if (hydrated && !accessToken) {

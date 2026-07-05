@@ -137,9 +137,9 @@ export const pawnApi = {
   dueSoon: () => goldApi.get<Pawn[]>('/api/gold/v1/pawns/due-soon').then(r => r.data),
   get: (id: string) => goldApi.get<Pawn>(`/api/gold/v1/pawns/${id}`).then(r => r.data),
   create: (data: Partial<Pawn>) => goldApi.post<Pawn>('/api/gold/v1/pawns', data).then(r => r.data),
-  payInterest: (id: string, data: any) => goldApi.post(`/api/gold/v1/pawns/${id}/pay-interest`, data),
-  redeem: (id: string, data: any) => goldApi.post(`/api/gold/v1/pawns/${id}/redeem`, data),
-  extend: (id: string, data: any) => goldApi.post(`/api/gold/v1/pawns/${id}/extend`, data),
+  payInterest: (id: string, data: Record<string, unknown>) => goldApi.post(`/api/gold/v1/pawns/${id}/pay-interest`, data),
+  redeem: (id: string, data: Record<string, unknown>) => goldApi.post(`/api/gold/v1/pawns/${id}/redeem`, data),
+  extend: (id: string, data: Record<string, unknown>) => goldApi.post(`/api/gold/v1/pawns/${id}/extend`, data),
   forfeit: (id: string) => goldApi.post(`/api/gold/v1/pawns/${id}/forfeit`),
 }
 

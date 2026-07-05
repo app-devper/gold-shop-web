@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { apiErrorMessage } from '@/lib/utils'
 
 const formSchema = z.object({
   username: z.string().min(1, 'Username is required'),
@@ -86,8 +87,8 @@ export default function LoginPage() {
 
       toast.success('Login successful')
       router.push('/dashboard')
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Login failed')
+    } catch (error) {
+      toast.error(apiErrorMessage(error, 'Login failed'))
     } finally {
       setIsLoading(false)
     }

@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { apiErrorMessage } from '@/lib/utils'
 
 interface PawnItemForm {
   description: string
@@ -72,8 +73,8 @@ export default function PawnCreatePage() {
       await pawnApi.create(payload)
       toast.success('บันทึกการรับจำนำสำเร็จ')
       router.push('/pawns')
-    } catch (e: any) {
-      toast.error(e.response?.data?.message || 'เกิดข้อผิดพลาด')
+    } catch (e) {
+      toast.error(apiErrorMessage(e, 'เกิดข้อผิดพลาด'))
     } finally { setSaving(false) }
   }
 
