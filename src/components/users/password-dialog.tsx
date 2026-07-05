@@ -6,6 +6,8 @@ import { useForm } from 'react-hook-form'
 import * as z from 'zod'
 import { toast } from 'sonner'
 import { umApi } from '@/lib/api'
+import { apiErrorMessage } from '@/lib/utils'
+import type { UmUser } from '@/components/users/user-dialog'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -35,7 +37,7 @@ export function PasswordDialog({
   open, 
   onOpenChange,
 }: { 
-  user: any | null
+  user: UmUser | null
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
@@ -64,8 +66,8 @@ export function PasswordDialog({
       })
       toast.success('Password updated successfully')
       onOpenChange(false)
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to update password')
+    } catch (error) {
+      toast.error(apiErrorMessage(error, 'Failed to update password'))
     } finally {
       setIsLoading(false)
     }

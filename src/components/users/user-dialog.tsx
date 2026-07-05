@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form'
 import * as z from 'zod'
 import { toast } from 'sonner'
 import { umApi } from '@/lib/api'
+import { apiErrorMessage } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
 
 import { Button } from '@/components/ui/button'
@@ -45,7 +46,6 @@ const formSchema = z.object({
   status: z.enum(['ACTIVE', 'INACTIVE']),
   password: z.string().optional(),
 }).refine(data => {
-  // Require password only on create
   if (!data.id && !data.password) {
     return false
   }
@@ -55,13 +55,24 @@ const formSchema = z.object({
   path: ["password"]
 })
 
-export function UserDialog({ 
-  user, 
-  open, 
+export interface UmUser {
+  id: string
+  firstName?: string
+  lastName?: string
+  username?: string
+  email?: string
+  phone?: string
+  role?: string
+  status?: string
+}
+
+export function UserDialog({
+  user,
+  open,
   onOpenChange,
-  onSuccess 
-}: { 
-  user: any | null
+  onSuccess
+}: {
+  user: UmUser | null
   open: boolean
   onOpenChange: (open: boolean) => void
   onSuccess: () => void
@@ -84,13 +95,19 @@ export function UserDialog({
     },
   })
 
-  // Reset form when user changes or dialog opens
   useEffect(() => {
     if (open) {
       if (user) {
         form.reset({
-          ...user,
-          password: '', // Don't show password on edit
+          id: user.id,
+          firstName: user.firstName || '',
+          lastName: user.lastName || '',
+          username: user.username || '',
+          email: user.email || '',
+          phone: user.phone || '',
+          role: user.role === 'SUPER' || user.role === 'ADMIN' ? user.role : 'USER',
+          status: user.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
+          password: '',
         })
       } else {
         form.reset({
@@ -111,28 +128,24 @@ export function UserDialog({
     try {
       setIsLoading(true)
       
-      if (isEditing) {
-        // Update user
+      if (user) {
         await umApi.put(`/user/${user.id}`, {
           firstName: values.firstName,
           lastName: values.lastName,
           email: values.email || undefined,
           phone: values.phone || undefined,
         })
-        
-        // Update role if changed
+
         if (values.role !== user.role) {
           await umApi.patch(`/user/${user.id}/role`, { role: values.role })
         }
-        
-        // Update status if changed
+
         if (values.status !== user.status) {
           await umApi.patch(`/user/${user.id}/status`, { status: values.status })
         }
-        
+
         toast.success('แก้ไขผู้ใช้สำเร็จ')
       } else {
-        // Create user
         await umApi.post('/user', {
           firstName: values.firstName,
           lastName: values.lastName,
@@ -148,8 +161,8 @@ export function UserDialog({
       
       onSuccess()
       onOpenChange(false)
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || `ไม่สามารถ${isEditing ? 'แก้ไข' : 'เพิ่ม'}ผู้ใช้ได้`)
+    } catch (error) {
+      toast.error(apiErrorMessage(error, `ไม่สามารถ${isEditing ? 'แก้ไข' : 'เพิ่ม'}ผู้ใช้ได้`))
     } finally {
       setIsLoading(false)
     }

@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
+import { apiErrorMessage } from '@/lib/utils'
 
 interface UserInfo {
   id: string
@@ -68,8 +69,8 @@ export default function ProfilePage() {
       await umApi.put('/user/change-password', { oldPassword: pwForm.oldPassword, newPassword: pwForm.newPassword })
       toast.success('เปลี่ยนรหัสผ่านแล้ว')
       setPwForm({ oldPassword: '', newPassword: '', confirm: '' })
-    } catch (e: any) {
-      toast.error(e.response?.data?.message ?? 'เปลี่ยนรหัสผ่านไม่สำเร็จ')
+    } catch (e) {
+      toast.error(apiErrorMessage(e, 'เปลี่ยนรหัสผ่านไม่สำเร็จ'))
     } finally {
       setSavingPw(false)
     }

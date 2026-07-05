@@ -5,13 +5,14 @@ import useSWR from 'swr'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
 import { TrendingUp, ShoppingCart, Landmark, PiggyBank, AlertTriangle, CheckCircle, RefreshCw, ArrowDownLeft, ArrowUpRight, Gem } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { reportApi, goldPriceApi } from '@/lib/gold-api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { DashboardData, GoldPrice } from '@/types/gold'
 
 const fmt = (n: number) => new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 }).format(n)
 
-function KpiCard({ title, value, icon: Icon, color }: { title: string; value: string; icon: any; color: string }) {
+function KpiCard({ title, value, icon: Icon, color }: { title: string; value: string; icon: LucideIcon; color: string }) {
   return (
     <Card>
       <CardContent className="pt-5">

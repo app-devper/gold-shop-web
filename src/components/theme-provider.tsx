@@ -9,14 +9,10 @@ const ThemeContext = createContext<{ theme: Theme; toggle: () => void } | null>(
 const STORAGE_KEY = 'gold-shop-theme'
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  // Default light; we hydrate from localStorage on mount to avoid SSR mismatch
-  const [theme, setTheme] = useState<Theme>('light')
-
-  useEffect(() => {
-    const stored = (localStorage.getItem(STORAGE_KEY) as Theme | null) ?? 'light'
-    setTheme(stored)
-    document.documentElement.classList.toggle('dark', stored === 'dark')
-  }, [])
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window === 'undefined') return 'light'
+    return (localStorage.getItem(STORAGE_KEY) as Theme | null) ?? 'light'
+  })
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark')
