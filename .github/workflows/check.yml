@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      NEXT_PUBLIC_UM_API_URL: https://devper-um-1056670356976.asia-southeast1.run.app
+      NEXT_PUBLIC_UM_API_URL: https://api.devper.app/api/um/v1
       NEXT_PUBLIC_SYSTEM_CODE: GOLD
     steps:
       - uses: actions/checkout@v4
