@@ -65,15 +65,27 @@ function GlobalSearchDialog({ open, onOpenChange }: { open: boolean; onOpenChang
   const debouncedQ = useDebounced(q, 250)
   const [results, setResults] = useState<Results>(EMPTY)
   const [loading, setLoading] = useState(false)
+  const [prevOpen, setPrevOpen] = useState(open)
+  const [prevQ, setPrevQ] = useState(debouncedQ)
+
+  if (open !== prevOpen) {
+    setPrevOpen(open)
+    if (!open) { setQ(''); setResults(EMPTY) }
+  }
+
+  if (debouncedQ !== prevQ) {
+    setPrevQ(debouncedQ)
+    if (!debouncedQ || debouncedQ.length < 2) {
+      setResults(EMPTY)
+      setLoading(false)
+    } else {
+      setLoading(true)
+    }
+  }
 
   useEffect(() => {
-    if (!open) { setQ(''); setResults(EMPTY); return }
-  }, [open])
-
-  useEffect(() => {
-    if (!debouncedQ || debouncedQ.length < 2) { setResults(EMPTY); return }
+    if (!debouncedQ || debouncedQ.length < 2) return
     let alive = true
-    setLoading(true)
     Promise.allSettled([
       customerApi.list().then(list => filterCustomers(list, debouncedQ)),
       productApi.list({ search: debouncedQ }),

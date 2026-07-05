@@ -5,7 +5,7 @@ import useSWR from 'swr'
 import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useForm } from 'react-hook-form'
+import { useForm, type Resolver } from 'react-hook-form'
 import * as z from 'zod'
 
 import { rewardApi, customerApi } from '@/lib/gold-api'
@@ -45,7 +45,7 @@ export default function RewardsPage() {
   const [redeemRewardId, setRedeemRewardId] = useState('')
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(schema) as any,
+    resolver: zodResolver(schema) as unknown as Resolver<FormValues>,
     defaultValues: { name: '', description: '', points_required: 100, quantity: 10, valid_from: new Date().toISOString().split('T')[0], valid_until: '' },
   })
 
@@ -127,7 +127,7 @@ export default function RewardsPage() {
         <DialogContent>
           <DialogHeader><DialogTitle>เพิ่มรางวัล</DialogTitle></DialogHeader>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-4">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField control={form.control} name="name" render={({ field }) => (
                 <FormItem><FormLabel>ชื่อรางวัล</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
               )} />

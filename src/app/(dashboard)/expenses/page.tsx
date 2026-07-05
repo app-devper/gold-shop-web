@@ -6,7 +6,7 @@ import { format } from 'date-fns'
 import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useForm } from 'react-hook-form'
+import { useForm, type Resolver } from 'react-hook-form'
 import * as z from 'zod'
 
 import { expenseApi } from '@/lib/gold-api'
@@ -54,7 +54,7 @@ export default function ExpensesPage() {
   const [saving, setSaving] = useState(false)
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(schema) as any,
+    resolver: zodResolver(schema) as unknown as Resolver<FormValues>,
     defaultValues: {
       category_id: '', description: '', amount: 0,
       expense_date: new Date().toISOString().split('T')[0],
@@ -121,7 +121,7 @@ export default function ExpensesPage() {
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader><DialogTitle>เพิ่มค่าใช้จ่าย</DialogTitle></DialogHeader>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-4">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField control={form.control} name="category_id" render={({ field }) => (
                 <FormItem><FormLabel>หมวดหมู่</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value}>
