@@ -201,6 +201,7 @@ export interface Sale {
   branch_id: string
   sale_number: string
   customer_id?: string
+  customer_name?: string
   user_id: string
   sale_type: SaleType
   gold_price?: GoldPriceSnapshot
@@ -245,6 +246,7 @@ export interface Pawn {
   branch_id: string
   pawn_number: string
   customer_id: string
+  customer_name?: string
   user_id: string
   items: PawnItem[]
   principal: number
@@ -282,6 +284,7 @@ export interface GoldSaving {
   branch_id: string
   account_number: string
   customer_id: string
+  customer_name?: string
 
   // Primary balance — grams of gold.
   gold_weight: number

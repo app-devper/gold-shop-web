@@ -68,23 +68,20 @@ export function CustomerSearchDialog({ open, onClose, customers, searchQ, setSea
   customers: Customer[]; searchQ: string; setSearchQ: (v: string) => void
   onSelect: (c: Customer) => void
 }) {
-  const filtered = customers.filter(c =>
-    c.full_name.toLowerCase().includes(searchQ.toLowerCase()) || c.phone?.includes(searchQ)
-  )
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader><DialogTitle>เลือกลูกค้า</DialogTitle></DialogHeader>
-        <Input placeholder="ค้นหาชื่อ, เบอร์โทร..." value={searchQ} onChange={e => setSearchQ(e.target.value)} />
+        <Input placeholder="ค้นหาชื่อ, เบอร์โทร, รหัสสมาชิก..." value={searchQ} onChange={e => setSearchQ(e.target.value)} />
         <div className="max-h-64 overflow-y-auto space-y-1 mt-2">
-          {filtered.map(c => (
+          {customers.map(c => (
             <button key={c.id} onClick={() => onSelect(c)}
               className="w-full text-left rounded-lg px-3 py-2 hover:bg-gold-50 border transition-colors">
               <p className="font-semibold text-sm">{c.full_name}</p>
               <p className="text-xs text-muted-foreground">{c.phone}{c.membership ? ` · ${c.membership.points} คะแนน` : ''}</p>
             </button>
           ))}
-          {filtered.length === 0 && <p className="text-center text-muted-foreground text-sm py-4">ไม่พบลูกค้า</p>}
+          {customers.length === 0 && <p className="text-center text-muted-foreground text-sm py-4">ไม่พบลูกค้า</p>}
         </div>
       </DialogContent>
     </Dialog>
@@ -398,6 +395,7 @@ export function SaleDetailDialog({ open, sale, onClose }: { open: boolean; sale:
             <div><span className="font-medium text-foreground">ประเภท:</span> {typeLabel[sale.sale_type]}</div>
             <div><span className="font-medium text-foreground">สถานะ:</span> {statusLabel[sale.status]}</div>
             <div><span className="font-medium text-foreground">วันที่:</span> {format(new Date(sale.created_at), 'dd/MM/yyyy')}</div>
+            {sale.customer_name && <div className="col-span-3"><span className="font-medium text-foreground">ลูกค้า:</span> {sale.customer_name}</div>}
           </div>
           {sale.gold_price && (
             <div className="rounded border bg-gold-50/60 p-3 text-xs">
