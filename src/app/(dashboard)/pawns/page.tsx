@@ -8,10 +8,10 @@ import type { LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
 
-import { pawnApi, customerApi } from '@/lib/gold-api'
+import { pawnApi } from '@/lib/gold-api'
 import { apiToastError } from '@/lib/api-toast'
 import { Pagination } from '@/components/pagination'
-import type { Pawn, Customer } from '@/types/gold'
+import type { Pawn } from '@/types/gold'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -52,15 +52,12 @@ export default function PawnsPage() {
     ['pawns', page],
     () => pawnApi.list({ limit: PAGE_SIZE, offset: page * PAGE_SIZE }),
   )
-  const { data: customers } = useSWR<Customer[]>('customers', () => customerApi.list())
   const [detail, setDetail] = useState<Pawn | null>(null)
   const [actionDialog, setActionDialog] = useState<{ type: 'interest' | 'redeem' | 'extend'; pawn: Pawn } | null>(null)
   const [amount, setAmount] = useState('')
   const [discount, setDiscount] = useState('0')
   const [months, setMonths] = useState('1')
   const [saving, setSaving] = useState(false)
-
-  const getCustomerName = (id: string) => customers?.find(c => c.id === id)?.full_name ?? id
 
   const now = new Date()
   const active = pawns?.filter(p => p.status === 'active' || p.status === 'extended') ?? []
@@ -118,7 +115,7 @@ export default function PawnsPage() {
             return (
               <TableRow key={p.id}>
                 <TableCell className="font-mono font-medium">{p.pawn_number}</TableCell>
-                <TableCell>{getCustomerName(p.customer_id)}</TableCell>
+                <TableCell>{p.customer_name || p.customer_id}</TableCell>
                 <TableCell className="font-medium">฿{fmt(p.principal)}</TableCell>
                 <TableCell>{p.interest_rate}%/เดือน</TableCell>
                 <TableCell className={overdue ? 'text-red-600 font-semibold' : ''}>
@@ -199,7 +196,7 @@ export default function PawnsPage() {
           {detail && (
             <div className="space-y-4 text-sm">
               <div className="grid grid-cols-2 gap-3">
-                <div><p className="text-muted-foreground text-xs">ลูกค้า</p><p className="font-semibold">{getCustomerName(detail.customer_id)}</p></div>
+                <div><p className="text-muted-foreground text-xs">ลูกค้า</p><p className="font-semibold">{detail.customer_name || detail.customer_id}</p></div>
                 <div><p className="text-muted-foreground text-xs">สถานะ</p><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor[detail.status]}`}>{statusLabel[detail.status]}</span></div>
                 <div><p className="text-muted-foreground text-xs">เงินต้น</p><p className="font-semibold">฿{fmt(detail.principal)}</p></div>
                 <div><p className="text-muted-foreground text-xs">อัตราดอกเบี้ย</p><p className="font-semibold">{detail.interest_rate}%/เดือน</p></div>

@@ -35,7 +35,7 @@ export const goldPriceApi = {
 
 // ── Customers ─────────────────────────────────────────────────────────────────
 export const customerApi = {
-  list: (params?: { limit?: number; offset?: number }) =>
+  list: (params?: { q?: string; limit?: number; offset?: number }) =>
     goldApi.get<Customer[]>('/api/gold/v1/customers', { params }).then(r => r.data),
   get: (id: string) => goldApi.get<Customer>(`/api/gold/v1/customers/${id}`).then(r => r.data),
   getByRFID: (rfid: string) => goldApi.get<Customer>(`/api/gold/v1/customers/rfid/${rfid}`).then(r => r.data),
@@ -132,7 +132,7 @@ export const saleApi = {
 
 // ── Pawns ─────────────────────────────────────────────────────────────────────
 export const pawnApi = {
-  list: (params?: { limit?: number; offset?: number }) =>
+  list: (params?: { q?: string; limit?: number; offset?: number }) =>
     goldApi.get<Pawn[]>('/api/gold/v1/pawns', { params }).then(r => r.data),
   dueSoon: () => goldApi.get<Pawn[]>('/api/gold/v1/pawns/due-soon').then(r => r.data),
   get: (id: string) => goldApi.get<Pawn>(`/api/gold/v1/pawns/${id}`).then(r => r.data),
@@ -155,7 +155,8 @@ type GoldSavingTxPayload = { mode: 'cash' | 'physical'; amount: number }
 type GoldSavingAdjustPayload = { weight_delta: number; note: string }
 
 export const goldSavingApi = {
-  list: () => goldApi.get<GoldSaving[]>('/api/gold/v1/gold-savings').then(r => r.data),
+  list: (params?: { q?: string; limit?: number }) =>
+    goldApi.get<GoldSaving[]>('/api/gold/v1/gold-savings', { params }).then(r => r.data),
   get: (id: string) => goldApi.get<GoldSaving>(`/api/gold/v1/gold-savings/${id}`).then(r => r.data),
   open: (data: OpenGoldSavingPayload) =>
     goldApi.post<GoldSaving>('/api/gold/v1/gold-savings', data).then(r => r.data),

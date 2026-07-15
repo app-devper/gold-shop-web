@@ -9,7 +9,8 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { goldSavingApi, customerApi, goldPriceApi } from '@/lib/gold-api'
+import { goldSavingApi, goldPriceApi } from '@/lib/gold-api'
+import { useCustomerSearch } from '@/lib/use-customer-search'
 import { apiToastError } from '@/lib/api-toast'
 import { useAuthStore } from '@/store/auth'
 import type { GoldSaving, Customer, GoldSavingTransaction } from '@/types/gold'
@@ -39,8 +40,7 @@ export default function GoldSavingsPage() {
   const userRole = useAuthStore(s => s.userRole)
   const isAdmin = userRole === 'SUPER' || userRole === 'ADMIN'
 
-  const { data: accounts, isLoading, mutate } = useSWR<GoldSaving[]>('gold-savings', goldSavingApi.list)
-  const { data: customers } = useSWR<Customer[]>('customers', () => customerApi.list())
+  const { data: accounts, isLoading, mutate } = useSWR<GoldSaving[]>('gold-savings', () => goldSavingApi.list())
   const { data: currentGoldPrice } = useSWR('gold-price-current', () => goldPriceApi.current())
 
   // Dialog state
@@ -65,14 +65,11 @@ export default function GoldSavingsPage() {
   const sellPerGram = currentGoldPrice ? currentGoldPrice.gold_bar_sell / BAHT_GRAM : 0
   const buyPerGram = currentGoldPrice ? currentGoldPrice.gold_bar_buy / BAHT_GRAM : 0
 
-  const getCustomerName = (id: string) => customers?.find(c => c.id === id)?.full_name ?? id
   const activeAccounts = accounts?.filter(a => a.status === 'active') ?? []
   const totalGold = activeAccounts.reduce((s, a) => s + a.gold_weight, 0)
   const totalMarkValue = totalGold * buyPerGram
 
-  const filteredCustomers = customers?.filter(c =>
-    c.full_name.toLowerCase().includes(newCustomerQ.toLowerCase()) || c.phone?.includes(newCustomerQ)
-  ) ?? []
+  const { customers: filteredCustomers } = useCustomerSearch(newCustomerQ)
 
   // ── Tx preview math ────────────────────────────────────────────────────────
   const amountNum = parseFloat(amountInput) || 0
@@ -219,7 +216,7 @@ export default function GoldSavingsPage() {
                   return (
                     <TableRow key={a.id}>
                       <TableCell className="font-mono font-medium">{a.account_number}</TableCell>
-                      <TableCell>{getCustomerName(a.customer_id)}</TableCell>
+                      <TableCell>{a.customer_name || a.customer_id}</TableCell>
                       <TableCell className="text-right font-medium text-gold-700">
                         <p>{fmtGram(a.gold_weight)} g</p>
                         <p className="text-xs text-gold-600/70">{fmtGram(a.gold_weight / BAHT_GRAM)} บาททอง</p>
@@ -264,7 +261,7 @@ export default function GoldSavingsPage() {
       {/* Statement / Detail dialog */}
       <Dialog open={!!detail} onOpenChange={() => setDetail(null)}>
         <DialogContent className="sm:max-w-lg">
-          <DialogHeader><DialogTitle>{detail?.account_number} · {getCustomerName(detail?.customer_id ?? '')}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{detail?.account_number} · {detail?.customer_name || detail?.customer_id}</DialogTitle></DialogHeader>
           {detail && <StatementView account={detail} buyPerGram={buyPerGram} sellPerGram={sellPerGram} />}
         </DialogContent>
       </Dialog>

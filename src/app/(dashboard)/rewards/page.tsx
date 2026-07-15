@@ -8,7 +8,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm, type Resolver } from 'react-hook-form'
 import * as z from 'zod'
 
-import { rewardApi, customerApi } from '@/lib/gold-api'
+import { rewardApi } from '@/lib/gold-api'
+import { useCustomerSearch } from '@/lib/use-customer-search'
 import { apiToastError } from '@/lib/api-toast'
 import { useAuthStore } from '@/store/auth'
 import type { Reward, Customer } from '@/types/gold'
@@ -37,12 +38,14 @@ const fmt = (n: number) => new Intl.NumberFormat('th-TH', { maximumFractionDigit
 export default function RewardsPage() {
   const branchId = useAuthStore(s => s.branchId)
   const { data: rewards, isLoading, mutate } = useSWR<Reward[]>('rewards', rewardApi.list)
-  const { data: customers } = useSWR<Customer[]>('customers', () => customerApi.list())
   const [open, setOpen] = useState(false)
   const [redeemOpen, setRedeemOpen] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [redeemCustomerId, setRedeemCustomerId] = useState('')
+  const [redeemCustomerQ, setRedeemCustomerQ] = useState('')
+  const [redeemCustomer, setRedeemCustomer] = useState<Customer | null>(null)
   const [redeemRewardId, setRedeemRewardId] = useState('')
+  const { customers: searchedCustomers } = useCustomerSearch(redeemCustomerQ)
+  const memberResults = searchedCustomers.filter(c => c.is_member)
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema) as unknown as Resolver<FormValues>,
@@ -60,17 +63,17 @@ export default function RewardsPage() {
   }
 
   const handleRedeem = async () => {
-    if (!redeemCustomerId || !redeemRewardId) return
+    if (!redeemCustomer || !redeemRewardId) return
     if (!branchId) { toast.error('ไม่พบสาขาของผู้ใช้ — กรุณาเข้าสู่ระบบใหม่'); return }
     try {
       setSaving(true)
       await rewardApi.redeem({
-        customer_id: redeemCustomerId,
+        customer_id: redeemCustomer.id,
         reward_id: redeemRewardId,
         branch_id: branchId,
       })
       toast.success('แลกรางวัลสำเร็จ')
-      setRedeemOpen(false); setRedeemCustomerId(''); setRedeemRewardId('')
+      setRedeemOpen(false); setRedeemCustomer(null); setRedeemCustomerQ(''); setRedeemRewardId('')
     } catch (e) { apiToastError(e) }
     finally { setSaving(false) }
   }
@@ -165,15 +168,33 @@ export default function RewardsPage() {
           <DialogHeader><DialogTitle>แลกรางวัล</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>ลูกค้า</Label>
-              <Select value={redeemCustomerId} onValueChange={setRedeemCustomerId}>
-                <SelectTrigger><SelectValue placeholder="เลือกลูกค้า" /></SelectTrigger>
-                <SelectContent>
-                  {customers?.filter(c => c.is_member).map(c => (
-                    <SelectItem key={c.id} value={c.id}>{c.full_name} ({c.membership?.points ?? 0} pts)</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>ลูกค้า (สมาชิก)</Label>
+              {redeemCustomer ? (
+                <div className="flex items-center gap-2 rounded-lg bg-gold-50 border border-gold-200 px-3 py-2">
+                  <div className="flex-1">
+                    <p className="font-semibold text-sm">{redeemCustomer.full_name}</p>
+                    <p className="text-xs text-muted-foreground">{redeemCustomer.membership?.points ?? 0} pts</p>
+                  </div>
+                  <button onClick={() => setRedeemCustomer(null)} className="text-muted-foreground hover:text-foreground text-lg leading-none">×</button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Input placeholder="ค้นหาชื่อ, เบอร์โทร, รหัสสมาชิก..." value={redeemCustomerQ} onChange={e => setRedeemCustomerQ(e.target.value)} />
+                  {redeemCustomerQ && (
+                    <div className="rounded-lg border divide-y max-h-40 overflow-y-auto">
+                      {memberResults.length === 0
+                        ? <p className="text-center text-sm text-muted-foreground py-3">ไม่พบสมาชิก</p>
+                        : memberResults.map(c => (
+                          <button key={c.id} onClick={() => { setRedeemCustomer(c); setRedeemCustomerQ('') }} className="w-full text-left px-3 py-2 hover:bg-gold-50 text-sm">
+                            <p className="font-medium">{c.full_name}</p>
+                            <p className="text-xs text-muted-foreground">{c.phone} · {c.membership?.points ?? 0} pts</p>
+                          </button>
+                        ))
+                      }
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <Label>รางวัล</Label>
@@ -189,7 +210,7 @@ export default function RewardsPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRedeemOpen(false)}>ยกเลิก</Button>
-            <Button onClick={handleRedeem} disabled={saving || !redeemCustomerId || !redeemRewardId}>
+            <Button onClick={handleRedeem} disabled={saving || !redeemCustomer || !redeemRewardId}>
               {saving ? 'กำลังดำเนินการ...' : 'แลกรางวัล'}
             </Button>
           </DialogFooter>
