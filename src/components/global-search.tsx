@@ -87,10 +87,10 @@ function GlobalSearchDialog({ open, onOpenChange }: { open: boolean; onOpenChang
     if (!debouncedQ || debouncedQ.length < 2) return
     let alive = true
     Promise.allSettled([
-      customerApi.list().then(list => filterCustomers(list, debouncedQ)),
+      customerApi.list({ q: debouncedQ, limit: 5 }),
       productApi.list({ search: debouncedQ }),
-      pawnApi.list().then(list => filterPawns(list, debouncedQ)),
-      goldSavingApi.list().then(list => filterSavings(list, debouncedQ)),
+      pawnApi.list({ q: debouncedQ, limit: 5 }),
+      goldSavingApi.list({ q: debouncedQ, limit: 5 }),
     ]).then(([c, p, pw, gs]) => {
       if (!alive) return
       setResults({
@@ -156,6 +156,7 @@ function GlobalSearchDialog({ open, onOpenChange }: { open: boolean; onOpenChang
                 <CommandItem key={p.id} onSelect={() => go(`/pawns`)}>
                   <Landmark className="mr-2 h-4 w-4" />
                   <span>{p.pawn_number}</span>
+                  {p.customer_name && <span className="ml-2 text-xs text-muted-foreground">{p.customer_name}</span>}
                   <span className="ml-auto text-xs text-muted-foreground">฿{p.principal.toLocaleString('th-TH')}</span>
                 </CommandItem>
               ))}
@@ -170,6 +171,7 @@ function GlobalSearchDialog({ open, onOpenChange }: { open: boolean; onOpenChang
                 <CommandItem key={s.id} onSelect={() => go(`/gold-savings`)}>
                   <PiggyBank className="mr-2 h-4 w-4" />
                   <span>{s.account_number}</span>
+                  {s.customer_name && <span className="ml-2 text-xs text-muted-foreground">{s.customer_name}</span>}
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -180,22 +182,3 @@ function GlobalSearchDialog({ open, onOpenChange }: { open: boolean; onOpenChang
   )
 }
 
-function filterCustomers(list: Customer[], q: string): Customer[] {
-  const lq = q.toLowerCase()
-  return list.filter(c =>
-    c.full_name.toLowerCase().includes(lq)
-    || c.phone?.includes(q)
-    || c.rfid_card?.toLowerCase().includes(lq)
-    || c.member_code?.toLowerCase().includes(lq)
-  )
-}
-
-function filterPawns(list: Pawn[], q: string): Pawn[] {
-  const lq = q.toLowerCase()
-  return list.filter(p => p.pawn_number.toLowerCase().includes(lq))
-}
-
-function filterSavings(list: GoldSaving[], q: string): GoldSaving[] {
-  const lq = q.toLowerCase()
-  return list.filter(s => s.account_number.toLowerCase().includes(lq))
-}

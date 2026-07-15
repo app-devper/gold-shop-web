@@ -6,8 +6,9 @@ import { format } from 'date-fns'
 import { Search, ShoppingCart, Trash2, Edit2, Tag, UserPlus, X, Receipt, XCircle, RefreshCw, Gem, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { saleApi, customerApi, productApi, goldPriceApi } from '@/lib/gold-api'
+import { saleApi, productApi, goldPriceApi } from '@/lib/gold-api'
 import { useDebounced } from '@/lib/use-debounced'
+import { useCustomerSearch } from '@/lib/use-customer-search'
 import { apiToastError } from '@/lib/api-toast'
 import type { Sale, Customer, Product, ProductItem, OldGoldItem, OldGoldCondition, OldItemDestination, Payment, GoldPrice, ProductKind } from '@/types/gold'
 import { OLD_ITEM_DESTINATION_LABELS } from '@/types/gold'
@@ -73,7 +74,7 @@ export default function SalesPage() {
     debouncedSearchQ ? ['products-search', debouncedSearchQ] : null,
     () => productApi.list({ search: debouncedSearchQ })
   )
-  const { data: customers } = useSWR<Customer[]>('customers', () => customerApi.list())
+  const { customers } = useCustomerSearch(customerSearchQ)
   const { data: salesHistory, isLoading: histLoading, mutate: mutateSales } = useSWR<Sale[]>('sales', () => saleApi.list())
 
   const displayProducts = useMemo(
@@ -462,7 +463,7 @@ export default function SalesPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className={`font-semibold text-sm ${s.status === 'cancelled' ? 'line-through text-gray-400' : ''}`}>{s.sale_number}</p>
-                    <p className="text-xs text-muted-foreground">{typeLabel[s.sale_type]} · {s.items.length} รายการ · {format(new Date(s.created_at), 'dd/MM/yy HH:mm')}</p>
+                    <p className="text-xs text-muted-foreground">{typeLabel[s.sale_type]} · {s.items.length} รายการ · {format(new Date(s.created_at), 'dd/MM/yy HH:mm')}{s.customer_name ? ` · ${s.customer_name}` : ''}</p>
                   </div>
                   <div className="text-right shrink-0">
                     <p className="font-bold text-sm">฿{fmt(s.net_total)}</p>
@@ -484,7 +485,7 @@ export default function SalesPage() {
       {/* ── Dialogs ── */}
       <CustomerSearchDialog
         open={customerSearchOpen} onClose={() => setCustomerSearchOpen(false)}
-        customers={customers ?? []} searchQ={customerSearchQ} setSearchQ={setCustomerSearchQ}
+        customers={customers} searchQ={customerSearchQ} setSearchQ={setCustomerSearchQ}
         onSelect={c => { setSelectedCustomer(c); setCustomerSearchOpen(false); setCustomerSearchQ('') }}
       />
       <EditPriceDialog

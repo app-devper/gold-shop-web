@@ -2,12 +2,11 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import useSWR from 'swr'
 import { Plus, X, ArrowLeft } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { pawnApi, customerApi } from '@/lib/gold-api'
-import { apiToastError } from '@/lib/api-toast'
+import { pawnApi } from '@/lib/gold-api'
+import { useCustomerSearch } from '@/lib/use-customer-search'
 import type { Customer } from '@/types/gold'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -27,7 +26,6 @@ const fmt = (n: number) => new Intl.NumberFormat('th-TH', { maximumFractionDigit
 
 export default function PawnCreatePage() {
   const router = useRouter()
-  const { data: customers } = useSWR<Customer[]>('customers', () => customerApi.list())
 
   const [customerSearchQ, setCustomerSearchQ] = useState('')
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
@@ -38,9 +36,7 @@ export default function PawnCreatePage() {
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
 
-  const filteredCustomers = customers?.filter(c =>
-    c.full_name.toLowerCase().includes(customerSearchQ.toLowerCase()) || c.phone?.includes(customerSearchQ)
-  ) ?? []
+  const { customers: filteredCustomers } = useCustomerSearch(customerSearchQ)
 
   const addItem = () => setItems(prev => [...prev, { description: '', gold_type: '96.5%', weight: '', appraised_value: '' }])
   const removeItem = (idx: number) => setItems(prev => prev.filter((_, i) => i !== idx))
