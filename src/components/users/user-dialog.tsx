@@ -42,7 +42,7 @@ const formSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters'),
   email: z.string().email('Invalid email address').optional().or(z.literal('')),
   phone: z.string().optional().or(z.literal('')),
-  role: z.enum(['SUPER', 'ADMIN', 'USER']),
+  role: z.string().min(1),
   status: z.enum(['ACTIVE', 'INACTIVE']),
   password: z.string().optional(),
 }).refine(data => {
@@ -64,15 +64,30 @@ export interface UmUser {
   phone?: string
   role?: string
   status?: string
+  /** What the signed-in user may do to this user, as UM decides it (um-api ADR-0006). */
+  can?: UmUserPermissions
+}
+
+export interface UmUserPermissions {
+  edit: boolean
+  delete: boolean
+  setStatus: boolean
+  setRole: boolean
+  setPassword: boolean
+  unlock: boolean
+  assignableRoles: string[]
 }
 
 export function UserDialog({
   user,
   open,
   onOpenChange,
-  onSuccess
+  onSuccess,
+  creatableRoles,
 }: {
   user: UmUser | null
+  /** Roles UM lets the signed-in user create (GET /user/rules). */
+  creatableRoles: string[]
   open: boolean
   onOpenChange: (open: boolean) => void
   onSuccess: () => void
@@ -80,6 +95,15 @@ export function UserDialog({
   const [isLoading, setIsLoading] = useState(false)
   const clientId = useAuthStore((s) => s.clientId) ?? ''
   const isEditing = !!user
+  // Roles offered: what UM allows for this user (plus its current role), or
+  // what the signed-in user may create. SUPER is never offered in the UI.
+  const offerable = (roles: string[]) => roles.filter((r) => r !== 'SUPER')
+  const roleOptions = user
+    ? Array.from(new Set([user.role ?? '', ...(user.can?.setRole ? offerable(user.can.assignableRoles) : [])])).filter(Boolean)
+    : offerable(creatableRoles)
+  const canSetRole = user ? !!user.can?.setRole : roleOptions.length > 1
+  const canSetStatus = !user || !!user.can?.setStatus
+  const defaultRole = roleOptions.includes('USER') ? 'USER' : roleOptions[0] ?? 'USER'
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -105,7 +129,7 @@ export function UserDialog({
           username: user.username || '',
           email: user.email || '',
           phone: user.phone || '',
-          role: user.role === 'SUPER' || user.role === 'ADMIN' ? user.role : 'USER',
+          role: user.role || 'USER',
           status: user.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
           password: '',
         })
@@ -116,13 +140,13 @@ export function UserDialog({
           username: '',
           email: '',
           phone: '',
-          role: 'USER',
+          role: defaultRole,
           status: 'ACTIVE',
           password: '',
         })
       }
     }
-  }, [user, open, form])
+  }, [user, open, form, defaultRole])
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
@@ -136,11 +160,11 @@ export function UserDialog({
           phone: values.phone || undefined,
         })
 
-        if (values.role !== user.role) {
+        if (canSetRole && values.role !== user.role) {
           await umApi.patch(`/user/${user.id}/role`, { role: values.role })
         }
 
-        if (values.status !== user.status) {
+        if (canSetStatus && values.status !== user.status) {
           await umApi.patch(`/user/${user.id}/status`, { status: values.status })
         }
 
@@ -276,16 +300,16 @@ export function UserDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>ตำแหน่ง</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!canSetRole}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="เลือกตำแหน่ง" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="SUPER">SUPER</SelectItem>
-                        <SelectItem value="ADMIN">ADMIN</SelectItem>
-                        <SelectItem value="USER">USER</SelectItem>
+                        {roleOptions.map((r) => (
+                          <SelectItem key={r} value={r}>{r}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -298,7 +322,7 @@ export function UserDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>สถานะ</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!canSetStatus}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="เลือกสถานะ" />
