@@ -24,7 +24,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { UserDialog } from '@/components/users/user-dialog'
+import { UserDialog, type UmUserPermissions } from '@/components/users/user-dialog'
 import { PasswordDialog } from '@/components/users/password-dialog'
 
 // Types
@@ -39,6 +39,8 @@ export interface User {
   phone: string
   email: string
   createdDate: string
+  /** What the signed-in user may do to this user (um-api ADR-0006). */
+  can?: UmUserPermissions
 }
 
 // Fetcher for SWR
@@ -46,6 +48,8 @@ const fetcher = (url: string) => umApi.get(url).then((res) => res.data)
 
 export default function UsersPage() {
   const { data: users, error, isLoading, mutate } = useSWR<User[]>('/user', fetcher)
+  const { data: rules } = useSWR<{ creatableRoles: string[] }>('/user/rules', fetcher)
+  const creatableRoles = rules?.creatableRoles ?? []
   
   const [isUserDialogOpen, setIsUserDialogOpen] = useState(false)
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false)
@@ -82,10 +86,12 @@ export default function UsersPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">จัดการผู้ใช้</h1>
-        <Button onClick={handleCreate} className="gap-2">
-          <Plus className="h-4 w-4" />
-          เพิ่มผู้ใช้
-        </Button>
+        {creatableRoles.length > 0 && (
+          <Button onClick={handleCreate} className="gap-2">
+            <Plus className="h-4 w-4" />
+            เพิ่มผู้ใช้
+          </Button>
+        )}
       </div>
 
       <Card>
@@ -129,6 +135,7 @@ export default function UsersPage() {
                         {format(new Date(user.createdDate), 'MMM d, yyyy')}
                       </TableCell>
                       <TableCell>
+                        {(user.can?.edit || user.can?.setPassword || user.can?.delete) && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" className="h-8 w-8 p-0">
@@ -138,21 +145,30 @@ export default function UsersPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuLabel>การดำเนินการ</DropdownMenuLabel>
-                            <DropdownMenuItem onClick={() => handleEdit(user)}>
-                              <Pencil className="mr-2 h-4 w-4" /> แก้ไขข้อมูล
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handlePassword(user)}>
-                              <KeyRound className="mr-2 h-4 w-4" /> ตั้งรหัสผ่าน
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem 
-                              className="text-red-600"
-                              onClick={() => handleDelete(user.id)}
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" /> ลบ
-                            </DropdownMenuItem>
+                            {user.can?.edit && (
+                              <DropdownMenuItem onClick={() => handleEdit(user)}>
+                                <Pencil className="mr-2 h-4 w-4" /> แก้ไขข้อมูล
+                              </DropdownMenuItem>
+                            )}
+                            {user.can?.setPassword && (
+                              <DropdownMenuItem onClick={() => handlePassword(user)}>
+                                <KeyRound className="mr-2 h-4 w-4" /> ตั้งรหัสผ่าน
+                              </DropdownMenuItem>
+                            )}
+                            {user.can?.delete && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-red-600"
+                                  onClick={() => handleDelete(user.id)}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" /> ลบ
+                                </DropdownMenuItem>
+                              </>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -175,6 +191,7 @@ export default function UsersPage() {
         open={isUserDialogOpen} 
         onOpenChange={setIsUserDialogOpen}
         onSuccess={() => mutate()}
+        creatableRoles={creatableRoles}
       />
 
       <PasswordDialog
