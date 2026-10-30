@@ -7,8 +7,7 @@ import { useForm } from 'react-hook-form'
 import * as z from 'zod'
 import { toast } from 'sonner'
 import { umApi } from '@/lib/api'
-import { employeeApi } from '@/lib/gold-api'
-import { useAuthStore } from '@/store/auth'
+import { startGoldSession, SYSTEM_CODE } from '@/lib/sign-in'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -31,8 +30,6 @@ const formSchema = z.object({
 export default function LoginPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
-  const setAuth = useAuthStore((state) => state.setAuth)
-  const setUserInfo = useAuthStore((state) => state.setUserInfo)
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -45,45 +42,15 @@ export default function LoginPage() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
       setIsLoading(true)
-      const systemCode = process.env.NEXT_PUBLIC_SYSTEM_CODE || 'GOLD'
-
       // 1. Login
       const loginRes = await umApi.post('/auth/login', {
         username: values.username,
         password: values.password,
-        system: systemCode,
+        system: SYSTEM_CODE,
       })
-      const token = loginRes.data.accessToken
 
-      // 2. Get System Host + clientId
-      const sysRes = await umApi.get('/auth/system', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      const host = sysRes.data.host
-      const clientId = sysRes.data.clientId
-
-      // 3. Get User Info for Role
-      const userRes = await umApi.get('/user/info', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      const role = userRes.data.role
-
-      // 4. Save auth (sets token+host so goldApi interceptor works)
-      setAuth(token, host, role, clientId)
-
-      // 5. Fetch employee /me to get branch name + id
-      let branchName = ''
-      let branchId = ''
-      try {
-        const emp = await employeeApi.me()
-        branchName = emp.branchName || ''
-        // API returns snake_case, type declares camelCase — read raw field directly.
-        branchId = (emp as unknown as { branch_id?: string }).branch_id || ''
-      } catch {
-        // Not an employee (e.g. SUPER admin) — branch fields stay empty
-      }
-
-      setUserInfo(values.username, branchName, branchId)
+      // 2. System, user and branch
+      await startGoldSession(loginRes.data.accessToken)
 
       toast.success('Login successful')
       router.push('/dashboard')
