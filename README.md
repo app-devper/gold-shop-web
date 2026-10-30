@@ -34,3 +34,11 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Agent skills
+
+The generic Claude Code / Codex skills (`coding-standards`, `tdd-workflow`,
+`grilling`, …) and the `ecc` rules are not in this repo. Every app-devper
+repo shares them from [app-devper/agent-skills](https://github.com/app-devper/agent-skills):
+clone it and run its `install.sh` once per machine. Only the skills about this
+repo live in `.claude/skills/`: `dev-flow`, `git-flow`, `pr`.
